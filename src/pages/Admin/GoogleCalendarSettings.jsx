@@ -22,7 +22,6 @@ export default function GoogleCalendarSettings() {
     settings: {
       createSetDay: true,
       createGameTime: true,
-      gameTimeDurationMins: 210,
       createRemoteCall: true,
       remoteCallDurationMins: 300,
       createFieldCall: true,
@@ -229,15 +228,8 @@ export default function GoogleCalendarSettings() {
                     checked={settings.settings.createGameTime}
                     onChange={(v) => setSetting('createGameTime', v)}
                     label="Game Time"
-                    desc="Timed event at game start for all crew"
+                    desc="3.5-hour event at game start time for all crew"
                   />
-                  {settings.settings.createGameTime && (
-                    <DurationInput
-                      label="Game event duration"
-                      value={settings.settings.gameTimeDurationMins}
-                      onChange={(v) => setSetting('gameTimeDurationMins', v)}
-                    />
-                  )}
                 </div>
                 <div className="space-y-2">
                   <Toggle

@@ -70,7 +70,6 @@ export function disconnect() {
 const DEFAULT_SETTINGS = {
   createSetDay: true,
   createGameTime: true,
-  gameTimeDurationMins: 210,    // 3.5 hours
   createRemoteCall: true,
   remoteCallDurationMins: 300,  // 5 hours
   createFieldCall: true,
@@ -179,7 +178,7 @@ export async function syncEvent(appEvent) {
   // Game Time
   if (settings.createGameTime && appEvent.startTime) {
     const start = new Date(appEvent.startTime)
-    const end = new Date(start.getTime() + settings.gameTimeDurationMins * 60 * 1000)
+    const end = new Date(start.getTime() + 210 * 60 * 1000) // 3.5 hours
 
     updates.gameTime = await upsertCalEvent(googleEventIds.gameTime, {
       summary: `[GAME] ${title}`,
