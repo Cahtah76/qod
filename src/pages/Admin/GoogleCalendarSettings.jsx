@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Calendar, CheckCircle, XCircle, RefreshCw, Link2, Link2Off, AlertCircle, Loader } from 'lucide-react'
 import { api } from '../../utils/api.js'
@@ -363,8 +363,23 @@ export default function GoogleCalendarSettings() {
 }
 
 function DurationInput({ label, value, onChange }) {
-  const hours = Math.floor(value / 60)
-  const mins = value % 60
+  const [localHours, setLocalHours] = useState(String(Math.floor(value / 60)))
+  const [localMins, setLocalMins] = useState(String(value % 60))
+
+  // Sync local state if parent value changes externally
+  const prevValue = useRef(value)
+  useEffect(() => {
+    if (value !== prevValue.current) {
+      prevValue.current = value
+      setLocalHours(String(Math.floor(value / 60)))
+      setLocalMins(String(value % 60))
+    }
+  }, [value])
+
+  const commit = (h, m) => {
+    const total = (parseInt(h) || 0) * 60 + (parseInt(m) || 0)
+    if (total > 0) onChange(total)
+  }
 
   return (
     <div className="ml-12 flex items-center gap-3">
@@ -374,10 +389,12 @@ function DurationInput({ label, value, onChange }) {
           type="number"
           min={0}
           max={23}
-          value={hours}
-          onChange={(e) => {
-            const h = Math.max(0, Math.min(23, parseInt(e.target.value) || 0))
-            onChange(h * 60 + mins)
+          value={localHours}
+          onChange={(e) => setLocalHours(e.target.value)}
+          onBlur={(e) => {
+            const h = String(Math.max(0, Math.min(23, parseInt(e.target.value) || 0)))
+            setLocalHours(h)
+            commit(h, localMins)
           }}
           className="w-14 text-center text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
         />
@@ -387,10 +404,12 @@ function DurationInput({ label, value, onChange }) {
           min={0}
           max={59}
           step={15}
-          value={mins}
-          onChange={(e) => {
-            const m = Math.max(0, Math.min(59, parseInt(e.target.value) || 0))
-            onChange(hours * 60 + m)
+          value={localMins}
+          onChange={(e) => setLocalMins(e.target.value)}
+          onBlur={(e) => {
+            const m = String(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))
+            setLocalMins(m)
+            commit(localHours, m)
           }}
           className="w-14 text-center text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
         />
