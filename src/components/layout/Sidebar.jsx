@@ -50,17 +50,13 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       style={{ minHeight: '100vh' }}
     >
       {/* Logo */}
-      <div className={`flex items-center border-b border-gray-800 ${collapsed ? 'justify-center py-4 px-2' : 'px-4 py-4 gap-3'}`}>
+      <div className={`flex items-center border-b border-gray-800 ${collapsed ? 'justify-center py-3 px-2' : 'px-4 py-3'}`}>
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <QODLogo size={28} />
-            <div>
-              <div className="text-white text-sm font-bold leading-tight tracking-wide">QOD</div>
-              <div className="text-gray-500 text-[10px] leading-tight tracking-wider uppercase">Operations</div>
-            </div>
-          </div>
+          <img src="/quintar-logo.png" alt="Quintar" className="h-8 w-auto brightness-0 invert" />
         )}
-        {collapsed && <QODLogo size={24} />}
+        {collapsed && (
+          <img src="/quintar-logo.png" alt="Quintar" className="h-7 w-7 object-cover object-left brightness-0 invert" />
+        )}
       </div>
 
       {/* Nav */}
@@ -111,11 +107,3 @@ export default function Sidebar({ collapsed, setCollapsed }) {
   )
 }
 
-function QODLogo({ size = 28 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="#0066cc" />
-      <text x="6" y="23" fontSize="16" fontWeight="bold" fill="white" fontFamily="Inter, sans-serif">Q</text>
-    </svg>
-  )
-}

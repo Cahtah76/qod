@@ -33,10 +33,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <QODLogo size={48} />
+          <img src="/quintar-logo.png" alt="Quintar" className="h-12 w-auto brightness-0 invert" />
           <div className="mt-3 text-center">
-            <div className="text-white text-xl font-bold tracking-wide">QOD</div>
-            <div className="text-gray-500 text-xs tracking-widest uppercase">Quintar Operations Dashboard</div>
+            <div className="text-gray-500 text-xs tracking-widest uppercase">Operations Dashboard</div>
           </div>
         </div>
 
@@ -109,11 +108,3 @@ export default function LoginPage() {
   )
 }
 
-function QODLogo({ size = 48 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="6" fill="#0066cc" />
-      <text x="6" y="23" fontSize="16" fontWeight="bold" fill="white" fontFamily="Inter, sans-serif">Q</text>
-    </svg>
-  )
-}
