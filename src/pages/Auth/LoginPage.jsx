@@ -33,7 +33,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <img src="/quintar-logo.png" alt="Quintar" className="h-12 w-auto brightness-0 invert" />
+          <img src="/quintar-logo.png" alt="Quintar" className="h-10 w-auto invert" />
           <div className="mt-3 text-center">
             <div className="text-gray-500 text-xs tracking-widest uppercase">Operations Dashboard</div>
           </div>

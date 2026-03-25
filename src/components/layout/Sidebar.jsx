@@ -52,10 +52,10 @@ export default function Sidebar({ collapsed, setCollapsed }) {
       {/* Logo */}
       <div className={`flex items-center border-b border-gray-800 ${collapsed ? 'justify-center py-3 px-2' : 'px-4 py-3'}`}>
         {!collapsed && (
-          <img src="/quintar-logo.png" alt="Quintar" className="h-8 w-auto brightness-0 invert" />
+          <img src="/quintar-logo.png" alt="Quintar" className="h-7 w-auto invert" />
         )}
         {collapsed && (
-          <img src="/quintar-logo.png" alt="Quintar" className="h-7 w-7 object-cover object-left brightness-0 invert" />
+          <img src="/quintar-logo.png" alt="Quintar" className="h-6 w-auto invert" style={{ maxWidth: '32px', objectFit: 'cover', objectPosition: 'left' }} />
         )}
       </div>
 
