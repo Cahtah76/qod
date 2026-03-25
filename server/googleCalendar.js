@@ -67,17 +67,21 @@ export function disconnect() {
   delCfg('google_calendar_id')
 }
 
+const DEFAULT_SETTINGS = {
+  createSetDay: true,
+  createRemoteCall: true,
+  createFieldCall: true,
+  sendInvites: true,
+  remoteCallDurationMins: 300,  // 5 hours
+  fieldCallDurationMins: 480,   // 8 hours
+}
+
 export function getStatus() {
   return {
     connected: !!getCfg('google_tokens'),
     email: getCfg('google_email'),
     calendarId: getCfg('google_calendar_id') || 'primary',
-    settings: getCfg('google_settings') || {
-      createSetDay: true,
-      createRemoteCall: true,
-      createFieldCall: true,
-      sendInvites: true,
-    },
+    settings: { ...DEFAULT_SETTINGS, ...(getCfg('google_settings') || {}) },
   }
 }
 
@@ -100,12 +104,7 @@ export async function syncEvent(appEvent) {
   const auth = getAuthedClient()
   if (!auth) return
 
-  const settings = getCfg('google_settings') || {
-    createSetDay: true,
-    createRemoteCall: true,
-    createFieldCall: true,
-    sendInvites: true,
-  }
+  const settings = { ...DEFAULT_SETTINGS, ...(getCfg('google_settings') || {}) }
   const calendarId = getCfg('google_calendar_id') || 'primary'
   const cal = google.calendar({ version: 'v3', auth })
 
@@ -178,9 +177,7 @@ export async function syncEvent(appEvent) {
   // Remote Call Time
   if (settings.createRemoteCall && appEvent.remoteCallTime) {
     const start = new Date(appEvent.remoteCallTime)
-    const end = appEvent.startTime
-      ? new Date(new Date(appEvent.startTime).getTime() + 2 * 60 * 60 * 1000)
-      : new Date(start.getTime() + 5 * 60 * 60 * 1000)
+    const end = new Date(start.getTime() + settings.remoteCallDurationMins * 60 * 1000)
 
     updates.remoteCall = await upsertCalEvent(googleEventIds.remoteCall, {
       summary: `[REMOTE] ${title}`,
@@ -195,9 +192,7 @@ export async function syncEvent(appEvent) {
   // Field Call Time
   if (settings.createFieldCall && appEvent.fieldCallTime) {
     const start = new Date(appEvent.fieldCallTime)
-    const end = appEvent.startTime
-      ? new Date(new Date(appEvent.startTime).getTime() + 2 * 60 * 60 * 1000)
-      : new Date(start.getTime() + 6 * 60 * 60 * 1000)
+    const end = new Date(start.getTime() + settings.fieldCallDurationMins * 60 * 1000)
 
     updates.fieldCall = await upsertCalEvent(googleEventIds.fieldCall, {
       summary: `[ON-SITE] ${title}`,

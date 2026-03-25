@@ -24,6 +24,8 @@ export default function GoogleCalendarSettings() {
       createRemoteCall: true,
       createFieldCall: true,
       sendInvites: true,
+      remoteCallDurationMins: 300,
+      fieldCallDurationMins: 480,
     },
   })
 
@@ -211,25 +213,43 @@ export default function GoogleCalendarSettings() {
             {/* Event type toggles */}
             <div>
               <label className="label mb-2">Which events to create</label>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Toggle
                   checked={settings.settings.createSetDay}
                   onChange={(v) => setSetting('createSetDay', v)}
                   label="Set Day"
                   desc="All-day event the day before the game for all assigned crew"
                 />
-                <Toggle
-                  checked={settings.settings.createRemoteCall}
-                  onChange={(v) => setSetting('createRemoteCall', v)}
-                  label="Remote Call Time"
-                  desc="Timed event for the remote operator"
-                />
-                <Toggle
-                  checked={settings.settings.createFieldCall}
-                  onChange={(v) => setSetting('createFieldCall', v)}
-                  label="Field Call Time"
-                  desc="Timed event for on-site operators"
-                />
+                <div className="space-y-2">
+                  <Toggle
+                    checked={settings.settings.createRemoteCall}
+                    onChange={(v) => setSetting('createRemoteCall', v)}
+                    label="Remote Call Time"
+                    desc="Timed event for the remote operator"
+                  />
+                  {settings.settings.createRemoteCall && (
+                    <DurationInput
+                      label="Remote call event duration"
+                      value={settings.settings.remoteCallDurationMins}
+                      onChange={(v) => setSetting('remoteCallDurationMins', v)}
+                    />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Toggle
+                    checked={settings.settings.createFieldCall}
+                    onChange={(v) => setSetting('createFieldCall', v)}
+                    label="Field Call Time"
+                    desc="Timed event for on-site operators"
+                  />
+                  {settings.settings.createFieldCall && (
+                    <DurationInput
+                      label="Field call event duration"
+                      value={settings.settings.fieldCallDurationMins}
+                      onChange={(v) => setSetting('fieldCallDurationMins', v)}
+                    />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -327,6 +347,44 @@ export default function GoogleCalendarSettings() {
           </ol>
         </div>
       )}
+    </div>
+  )
+}
+
+function DurationInput({ label, value, onChange }) {
+  const hours = Math.floor(value / 60)
+  const mins = value % 60
+
+  return (
+    <div className="ml-12 flex items-center gap-3">
+      <span className="text-xs text-gray-500 w-36">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="number"
+          min={0}
+          max={23}
+          value={hours}
+          onChange={(e) => {
+            const h = Math.max(0, Math.min(23, parseInt(e.target.value) || 0))
+            onChange(h * 60 + mins)
+          }}
+          className="w-14 text-center text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
+        />
+        <span className="text-xs text-gray-500">hr</span>
+        <input
+          type="number"
+          min={0}
+          max={59}
+          step={15}
+          value={mins}
+          onChange={(e) => {
+            const m = Math.max(0, Math.min(59, parseInt(e.target.value) || 0))
+            onChange(hours * 60 + m)
+          }}
+          className="w-14 text-center text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
+        />
+        <span className="text-xs text-gray-500">min</span>
+      </div>
     </div>
   )
 }
