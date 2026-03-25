@@ -69,11 +69,14 @@ export function disconnect() {
 
 const DEFAULT_SETTINGS = {
   createSetDay: true,
+  setDaysBefore: 1,             // how many days before game
+  createGameTime: true,
+  gameTimeDurationMins: 210,    // 3.5 hours
   createRemoteCall: true,
-  createFieldCall: true,
-  sendInvites: true,
   remoteCallDurationMins: 300,  // 5 hours
+  createFieldCall: true,
   fieldCallDurationMins: 480,   // 8 hours
+  sendInvites: true,
 }
 
 export function getStatus() {
@@ -157,11 +160,11 @@ export async function syncEvent(appEvent) {
 
   const updates = {}
 
-  // Set Day — all-day event the day before the game
-  if (settings.createSetDay && appEvent.startTime) {
+  // Set Day — all-day event N days before the game
+  if (settings.createSetDay && appEvent.startTime && appEvent.hasSetDay !== false) {
     const gameDate = new Date(appEvent.startTime)
     const setDate = new Date(gameDate)
-    setDate.setUTCDate(setDate.getUTCDate() - 1)
+    setDate.setUTCDate(setDate.getUTCDate() - (settings.setDaysBefore || 1))
     const dateStr = setDate.toISOString().slice(0, 10)
 
     updates.setDay = await upsertCalEvent(googleEventIds.setDay, {
@@ -170,6 +173,21 @@ export async function syncEvent(appEvent) {
       description: `Set day preparation for ${title}.${appEvent.notes ? `\n\n${appEvent.notes}` : ''}`,
       start: { date: dateStr },
       end: { date: dateStr },
+      attendees: allAttendees,
+    })
+  }
+
+  // Game Time
+  if (settings.createGameTime && appEvent.startTime) {
+    const start = new Date(appEvent.startTime)
+    const end = new Date(start.getTime() + settings.gameTimeDurationMins * 60 * 1000)
+
+    updates.gameTime = await upsertCalEvent(googleEventIds.gameTime, {
+      summary: `[GAME] ${title}`,
+      location,
+      description: `${title}.${appEvent.notes ? `\n\n${appEvent.notes}` : ''}`,
+      start: { dateTime: start.toISOString(), timeZone: 'UTC' },
+      end: { dateTime: end.toISOString(), timeZone: 'UTC' },
       attendees: allAttendees,
     })
   }
@@ -221,7 +239,7 @@ export async function deleteEventFromCalendar(appEvent) {
   const calendarId = getCfg('google_calendar_id') || 'primary'
   const cal = google.calendar({ version: 'v3', auth })
 
-  for (const key of ['setDay', 'remoteCall', 'fieldCall']) {
+  for (const key of ['setDay', 'gameTime', 'remoteCall', 'fieldCall']) {
     const id = appEvent.googleEventIds[key]
     if (id) {
       try {

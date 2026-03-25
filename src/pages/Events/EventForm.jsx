@@ -21,6 +21,7 @@ const defaultForm = {
   startTime: '',
   remoteCallTime: '',
   fieldCallTime: '',
+  hasSetDay: true,
   surveyRequired: false,
   surveyType: '',
   kitId: '',
@@ -225,6 +226,15 @@ export default function EventForm({ event, onClose }) {
       </div>
 
       <div className="flex items-center gap-4">
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            className="rounded border-gray-300"
+            checked={form.hasSetDay !== false}
+            onChange={e => set('hasSetDay', e.target.checked)}
+          />
+          Has Set Day
+        </label>
         <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
           <input
             type="checkbox"
