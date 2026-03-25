@@ -21,7 +21,6 @@ export default function GoogleCalendarSettings() {
     calendarId: 'primary',
     settings: {
       createSetDay: true,
-      setDaysBefore: 1,
       createGameTime: true,
       gameTimeDurationMins: 210,
       createRemoteCall: true,
@@ -222,21 +221,8 @@ export default function GoogleCalendarSettings() {
                     checked={settings.settings.createSetDay}
                     onChange={(v) => setSetting('createSetDay', v)}
                     label="Set Day"
-                    desc="All-day event N days before the game for all assigned crew"
+                    desc="All-day event the day before the game for all assigned crew"
                   />
-                  {settings.settings.createSetDay && (
-                    <div className="ml-12 flex items-center gap-2">
-                      <span className="text-xs text-gray-500">Days before game</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={7}
-                        value={settings.settings.setDaysBefore}
-                        onChange={(e) => setSetting('setDaysBefore', Math.max(1, Math.min(7, parseInt(e.target.value) || 1)))}
-                        className="w-14 text-center text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  )}
                 </div>
                 <div className="space-y-2">
                   <Toggle

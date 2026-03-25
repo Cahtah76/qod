@@ -69,7 +69,6 @@ export function disconnect() {
 
 const DEFAULT_SETTINGS = {
   createSetDay: true,
-  setDaysBefore: 1,             // how many days before game
   createGameTime: true,
   gameTimeDurationMins: 210,    // 3.5 hours
   createRemoteCall: true,
@@ -164,7 +163,7 @@ export async function syncEvent(appEvent) {
   if (settings.createSetDay && appEvent.startTime && appEvent.hasSetDay !== false) {
     const gameDate = new Date(appEvent.startTime)
     const setDate = new Date(gameDate)
-    setDate.setUTCDate(setDate.getUTCDate() - (settings.setDaysBefore || 1))
+    setDate.setUTCDate(setDate.getUTCDate() - 1)
     const dateStr = setDate.toISOString().slice(0, 10)
 
     updates.setDay = await upsertCalEvent(googleEventIds.setDay, {
