@@ -1,0 +1,10 @@
+node_modules/
+dist/
+qod.db
+qod.db-shm
+qod.db-wal
+.env
+.env.local
+.env.*.local
+*.log
+.claude/
