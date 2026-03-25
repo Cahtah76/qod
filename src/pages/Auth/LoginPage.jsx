@@ -104,15 +104,6 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Dev hint */}
-        <div className="mt-4 bg-[#1a1a22] border border-gray-800/60 rounded-lg p-3 text-[11px] text-gray-500 space-y-1">
-          <div className="text-gray-400 font-medium mb-1.5">Dev credentials</div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-            <span className="text-gray-400">arivera@quintar.ai</span><span>quintar2026</span>
-            <span className="text-gray-400">jlee@quintar.ai</span><span>jlee2026</span>
-            <span className="text-gray-400">spatel@quintar.ai</span><span>spatel2026</span>
-          </div>
-        </div>
       </div>
     </div>
   )

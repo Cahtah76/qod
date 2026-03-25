@@ -5,8 +5,9 @@ import { initialData } from '../src/data/mockData.js'
 export function seedIfEmpty() {
   if (q.count('events') > 0) return
 
+  const defaultPassword = process.env.SEED_DEFAULT_PASSWORD || 'ChangeMe123!'
   for (const emp of initialData.employees) {
-    q.upsert('employees', { ...emp, password: bcrypt.hashSync(emp.password, 10) })
+    q.upsert('employees', { ...emp, password: bcrypt.hashSync(defaultPassword, 10), mustChangePassword: true })
   }
   for (const item of initialData.venues) q.upsert('venues', item)
   for (const item of initialData.kits) q.upsert('kits', item)

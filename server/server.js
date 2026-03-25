@@ -4,8 +4,10 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import Anthropic from '@anthropic-ai/sdk'
 import { q } from './db.js'
 import { seedIfEmpty, migratePasswords } from './seed.js'
 import {
@@ -13,6 +15,13 @@ import {
   getStatus, saveSettings, listCalendars,
   syncEvent, deleteEventFromCalendar,
 } from './googleCalendar.js'
+
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set in production')
+  }
+  return 'dev-secret-change-in-production'
+})()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(__dirname, '..', 'dist')
@@ -54,6 +63,25 @@ migratePasswords()
 // ── Health check — ALB pings this to verify the instance is alive ─────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 
+// ── JWT auth middleware — applied to all /api/* routes except auth + callback ──
+function requireAuth(req, res, next) {
+  const header = req.headers.authorization
+  if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' })
+  try {
+    req.user = jwt.verify(header.slice(7), JWT_SECRET)
+    next()
+  } catch {
+    res.status(401).json({ error: 'Session expired. Please sign in again.' })
+  }
+}
+
+// Public routes (no token needed)
+const PUBLIC_ROUTES = ['/api/auth/login', '/api/google/callback']
+app.use('/api', (req, res, next) => {
+  if (PUBLIC_ROUTES.some(r => req.path === r)) return next()
+  requireAuth(req, res, next)
+})
+
 // ── Rate limiter for auth routes ──────────────────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -68,7 +96,8 @@ app.get('/api/state', (_req, res) => {
   res.json({
     events: q.getAll('events'),
     venues: q.getAll('venues'),
-    employees: q.getAll('employees'),
+    // Never send password hashes to the client
+    employees: q.getAll('employees').map(({ password: _, ...emp }) => emp),
     kits: q.getAll('kits'),
     checklistTemplates: q.getAll('checklist_templates'),
     checklistInstances: q.getAll('checklist_instances'),
@@ -77,6 +106,41 @@ app.get('/api/state', (_req, res) => {
     announcements: q.getAll('announcements'),
     documentation: q.getAll('documentation'),
   })
+})
+
+// ── AI schedule parsing (keeps Anthropic API key server-side) ────────────────
+app.post('/api/ai/parse-schedule', async (req, res) => {
+  const { text } = req.body
+  if (!text) return res.status(400).json({ error: 'text is required' })
+
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' })
+
+  try {
+    const client = new Anthropic({ apiKey })
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      system: `You are a sports schedule parser. Extract game events from the provided text and return a valid JSON array only — no markdown, no explanation, just the JSON array.
+
+Each game object must have these fields:
+- name: string (e.g. "NBA — ATL vs BOS")
+- league: string (e.g. "NBA", "NFL", "NHL", "MLB", "MLS")
+- season: string (e.g. "2025-2026")
+- homeTeam: { name: string, abbreviation: string (2-4 chars), primaryColor: string (hex, default "#000000") }
+- awayTeam: { name: string, abbreviation: string (2-4 chars), primaryColor: string (hex, default "#000000") }
+- startTime: string (ISO 8601, infer timezone from city if possible, default to "T19:30:00.000Z" if time unknown)
+
+Use standard team abbreviations (ATL, BOS, LAL, GSW, etc.). Infer the season from the dates. If a game is a home game for the team whose schedule was provided, set them as homeTeam — otherwise make a best guess based on context clues like "vs" vs "@" (@ means away).`,
+      messages: [{ role: 'user', content: text }],
+    })
+    const raw = response.content[0].text.trim()
+    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+    res.json(JSON.parse(clean))
+  } catch (err) {
+    console.error('AI parse error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 // ── Google Calendar integration ───────────────────────────────────────────────
@@ -231,7 +295,8 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password.' })
   }
   const { password: _pw, ...safe } = emp
-  res.json(safe)
+  const token = jwt.sign({ id: emp.id, role: emp.role }, JWT_SECRET, { expiresIn: '7d' })
+  res.json({ ...safe, token })
 })
 
 app.post('/api/auth/change-password', loginLimiter, (req, res) => {

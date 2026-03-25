@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { format } from 'date-fns'
-import { Sparkles, Key, AlertCircle, ChevronRight, Check, Loader, Upload, Calendar, Globe } from 'lucide-react'
-import { parseScheduleText, getSavedApiKey, saveApiKey } from '../../utils/ai.js'
+import { Sparkles, AlertCircle, ChevronRight, Check, Loader, Upload, Calendar, Globe } from 'lucide-react'
+import { parseScheduleText } from '../../utils/ai.js'
 import { parseIcs } from '../../utils/icsParser.js'
 import { fetchBrefSchedule, US_TIMEZONES } from '../../utils/brefParser.js'
 
@@ -21,8 +21,6 @@ export default function ImportGamesModal({ state, dispatch, onClose }) {
   const fileRef = useRef()
 
   // AI state
-  const [apiKey, setApiKey] = useState(getSavedApiKey)
-  const [saveKey, setSaveKey] = useState(!!getSavedApiKey())
   const [aiText, setAiText] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -65,13 +63,11 @@ export default function ImportGamesModal({ state, dispatch, onClose }) {
   }
 
   const handleAiParse = async () => {
-    if (!apiKey.trim()) { setError('Enter your Anthropic API key.'); return }
     if (!aiText.trim()) { setError('Paste some schedule text first.'); return }
     setError(null)
     setLoading(true)
     try {
-      if (saveKey) saveApiKey(apiKey.trim())
-      const games = await parseScheduleText(aiText, apiKey.trim())
+      const games = await parseScheduleText(aiText)
       if (games.length === 0) { setError('No games detected. Try pasting more detailed schedule text.'); return }
       goToReview(games)
     } catch (e) {
@@ -281,7 +277,7 @@ export default function ImportGamesModal({ state, dispatch, onClose }) {
       ) : (
         <>
           <div className="p-3 bg-purple-50 rounded border border-purple-100 text-xs text-purple-700 leading-relaxed">
-            Paste any schedule text — a copied webpage, plain list, or table. Claude will extract the games. Requires an Anthropic API key.
+            Paste any schedule text — a copied webpage, plain list, or table. Claude will extract the games.
           </div>
 
           <div>
@@ -292,21 +288,6 @@ export default function ImportGamesModal({ state, dispatch, onClose }) {
               value={aiText}
               onChange={e => setAiText(e.target.value)}
             />
-          </div>
-
-          <div>
-            <label className="label flex items-center gap-1.5"><Key size={12} /> Anthropic API Key</label>
-            <input
-              type="password"
-              className="input text-sm font-mono"
-              placeholder="sk-ant-..."
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-            />
-            <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer mt-1.5">
-              <input type="checkbox" className="rounded border-gray-300" checked={saveKey} onChange={e => setSaveKey(e.target.checked)} />
-              Save key locally for future imports
-            </label>
           </div>
 
           {error && (
