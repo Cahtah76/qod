@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import Anthropic from '@anthropic-ai/sdk'
+import { searchGames } from './espn.js'
 import { q } from './db.js'
 import { seedIfEmpty, migratePasswords } from './seed.js'
 import {
@@ -139,6 +140,18 @@ Use standard team abbreviations (ATL, BOS, LAL, GSW, etc.). Infer the season fro
     res.json(JSON.parse(clean))
   } catch (err) {
     console.error('AI parse error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── ESPN game lookup ──────────────────────────────────────────────────────────
+app.get('/api/games/search', async (req, res) => {
+  const { league, date } = req.query
+  if (!league || !date) return res.status(400).json({ error: 'league and date are required' })
+  try {
+    res.json(await searchGames(league, date))
+  } catch (err) {
+    console.error('ESPN search error:', err.message)
     res.status(500).json({ error: err.message })
   }
 })

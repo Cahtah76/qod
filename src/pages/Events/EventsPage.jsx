@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
-import { Plus, Calendar, List, Search, MapPin, Clock, Package, Sparkles, Trash2 } from 'lucide-react'
+import { Plus, Calendar, List, Search, MapPin, Clock, Package, Sparkles, Trash2, Tv2 } from 'lucide-react'
 import { tzAbbr } from '../../utils/time.js'
 import { useApp, getEventStatus, getEventStatusColor, getChecklistProgress } from '../../context/AppContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
@@ -9,6 +9,7 @@ import PageHeader from '../../components/ui/PageHeader.jsx'
 import Modal from '../../components/ui/Modal.jsx'
 import EventForm from './EventForm.jsx'
 import ImportGamesModal from './ImportGamesModal.jsx'
+import GameLookupModal from './GameLookupModal.jsx'
 import ProgressBar from '../../components/ui/ProgressBar.jsx'
 
 export default function EventsPage() {
@@ -19,6 +20,8 @@ export default function EventsPage() {
   const [leagueFilter, setLeagueFilter] = useState('All')
   const [showModal, setShowModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showLookup, setShowLookup] = useState(false)
+  const [prefill, setPrefill] = useState(null)
   const [view, setView] = useState('list')
   const [selected, setSelected] = useState(new Set())
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -64,7 +67,10 @@ export default function EventsPage() {
             <button className="btn-secondary" onClick={() => setShowImport(true)}>
               <Sparkles size={14} /> Import Games
             </button>
-            <button className="btn-primary" onClick={() => setShowModal(true)}>
+            <button className="btn-secondary" onClick={() => setShowLookup(true)}>
+              <Tv2 size={14} /> Find Game
+            </button>
+            <button className="btn-primary" onClick={() => { setPrefill(null); setShowModal(true) }}>
               <Plus size={14} /> Add Event
             </button>
           </div>
@@ -132,7 +138,18 @@ export default function EventsPage() {
       </div>
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Add New Event" size="lg">
-        <EventForm onClose={() => setShowModal(false)} />
+        <EventForm prefill={prefill} onClose={() => setShowModal(false)} />
+      </Modal>
+
+      <Modal open={showLookup} onClose={() => setShowLookup(false)} title="Find a Game" size="lg">
+        <GameLookupModal
+          onSelect={(game) => {
+            setPrefill(game)
+            setShowLookup(false)
+            setShowModal(true)
+          }}
+          onClose={() => setShowLookup(false)}
+        />
       </Modal>
 
       <Modal open={showImport} onClose={() => setShowImport(false)} title="Import Games" size="lg">

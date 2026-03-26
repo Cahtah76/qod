@@ -29,14 +29,20 @@ const defaultForm = {
   notes: '',
 }
 
-export default function EventForm({ event, onClose }) {
+export default function EventForm({ event, prefill, onClose }) {
   const { state, dispatch } = useApp()
   const [form, setForm] = useState(event ? {
     ...event,
     startTime: toLocalInput(event.startTime),
     remoteCallTime: toLocalInput(event.remoteCallTime),
     fieldCallTime: toLocalInput(event.fieldCallTime),
-  } : { ...defaultForm })
+  } : {
+    ...defaultForm,
+    ...(prefill ? {
+      ...prefill,
+      startTime: toLocalInput(prefill.startTime),
+    } : {}),
+  })
 
   const set = (field, value) => setForm(f => ({ ...f, [field]: value }))
 
