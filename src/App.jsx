@@ -28,9 +28,9 @@ function RequireAuth({ children }) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
   if (mustChangePassword) {
-    return <ChangePasswordPage />
+    return <AppProvider><ChangePasswordPage /></AppProvider>
   }
-  return children
+  return <AppProvider>{children}</AppProvider>
 }
 
 function RequireAdmin({ children }) {
@@ -42,9 +42,8 @@ function RequireAdmin({ children }) {
 export default function App() {
   return (
     <AuthProvider>
-      <AppProvider>
-        <BrowserRouter>
-          <Routes>
+      <BrowserRouter>
+        <Routes>
             {/* Public */}
             <Route path="/login" element={<LoginPage />} />
 
@@ -75,7 +74,6 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
-      </AppProvider>
     </AuthProvider>
   )
 }

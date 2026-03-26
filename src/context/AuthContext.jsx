@@ -21,8 +21,14 @@ export function AuthProvider({ children }) {
       localStorage.setItem(AUTH_KEY, JSON.stringify(user))
       setCurrentUser(user)
       return { ok: true }
-    } catch {
-      return { ok: false, error: 'Invalid email or password.' }
+    } catch (err) {
+      // Pull the server's error message out of the thrown string if available
+      const match = err.message?.match(/\d+: (.+)$/)
+      let msg = 'Invalid email or password.'
+      if (match) {
+        try { msg = JSON.parse(match[1]).error || msg } catch { /* use default */ }
+      }
+      return { ok: false, error: msg }
     }
   }, [])
 
