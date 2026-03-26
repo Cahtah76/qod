@@ -18,6 +18,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     try {
       const user = await api.post('/api/auth/login', { email, password })
+      if (!user) throw new Error('Invalid email or password.')
       localStorage.setItem(AUTH_KEY, JSON.stringify(user))
       setCurrentUser(user)
       return { ok: true }
