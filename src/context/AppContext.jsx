@@ -325,8 +325,11 @@ export function AppProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const stored = localStorage.getItem('qod_user')
+    if (!stored) { setLoading(false); return }
     api.get('/api/state')
       .then((data) => {
+        if (!data) return  // 401 redirect already in flight
         stateRef.current = { ...initialData, ...data }
         baseDispatch({ type: 'SET_STATE', payload: data })
       })

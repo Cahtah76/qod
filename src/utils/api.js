@@ -20,9 +20,11 @@ async function request(method, path, body) {
   })
 
   if (res.status === 401) {
-    // Session expired — clear local auth and reload to login
+    // Session expired — clear local auth and redirect to login
     localStorage.removeItem('qod_user')
-    window.location.href = '/login'
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login'
+    }
     return
   }
 
