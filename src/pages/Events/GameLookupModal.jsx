@@ -25,7 +25,7 @@ export default function GameLookupModal({ onSelect, onClose }) {
       setGames(results)
       if (results.length === 0) setError('No games found for this league and date.')
     } catch (e) {
-      setError('Failed to fetch games. Check your internet connection.')
+      setError(e.message || 'Failed to fetch games.')
     } finally {
       setLoading(false)
     }

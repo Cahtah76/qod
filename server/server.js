@@ -151,7 +151,7 @@ app.get('/api/games/search', async (req, res) => {
   try {
     res.json(await searchGames(league, date))
   } catch (err) {
-    console.error('ESPN search error:', err.message)
+    console.error('ESPN search error:', err.message, err.cause || '')
     res.status(500).json({ error: err.message })
   }
 })

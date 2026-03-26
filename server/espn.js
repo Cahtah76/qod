@@ -62,9 +62,16 @@ export async function searchGames(leagueName, date) {
   const dateStr = date.replace(/-/g, '')
   const url = `https://site.api.espn.com/apis/site/v2/sports/${map.sport}/${map.league}/scoreboard?dates=${dateStr}`
 
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`ESPN API returned ${res.status}`)
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/json',
+    },
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`ESPN API returned ${res.status}: ${body.slice(0, 200)}`)
+  }
   const data = await res.json()
-
   return (data.events || []).map(e => normalizeEvent(e, leagueName))
 }
