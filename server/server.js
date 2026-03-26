@@ -77,7 +77,7 @@ function requireAuth(req, res, next) {
 }
 
 // Public routes (no token needed)
-const PUBLIC_ROUTES = ['/api/auth/login', '/api/google/callback']
+const PUBLIC_ROUTES = ['/auth/login', '/google/callback']
 app.use('/api', (req, res, next) => {
   if (PUBLIC_ROUTES.some(r => req.path === r)) return next()
   requireAuth(req, res, next)
