@@ -136,13 +136,19 @@ export default function Dashboard() {
                       <div className="flex items-center gap-3 mt-1.5">
                         <div className="flex items-center gap-1.5 flex-1">
                           <span className="text-[10px] text-gray-400 w-12">Set Day</span>
-                          <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                            <div
-                              className={`h-1.5 rounded-full ${sdPct === 100 ? 'bg-green-500' : sdPct > 0 ? 'bg-blue-500' : 'bg-gray-300'}`}
-                              style={{ width: `${sdPct}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-gray-500 w-6">{sdPct}%</span>
+                          {event.hasSetDay === false ? (
+                            <span className="text-[10px] text-gray-400 italic">N/A</span>
+                          ) : (
+                            <>
+                              <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={`h-1.5 rounded-full ${sdPct === 100 ? 'bg-green-500' : sdPct > 0 ? 'bg-blue-500' : 'bg-gray-300'}`}
+                                  style={{ width: `${sdPct}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-gray-500 w-6">{sdPct}%</span>
+                            </>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 flex-1">
                           <span className="text-[10px] text-gray-400 w-12">Game Day</span>

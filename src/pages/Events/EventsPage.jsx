@@ -251,13 +251,19 @@ function EventList({ events, state, isAdmin, selected, onToggle, onToggleAll }) 
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-gray-400 w-12 flex-shrink-0">Set Day</span>
-                      <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                        <div
-                          className={`h-1.5 rounded-full ${sdPct === 100 ? 'bg-green-500' : 'bg-blue-500'}`}
-                          style={{ width: `${sdPct}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-gray-500 w-6">{sdPct}%</span>
+                      {event.hasSetDay === false ? (
+                        <span className="text-[10px] text-gray-400 italic">N/A</span>
+                      ) : (
+                        <>
+                          <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-1.5 rounded-full ${sdPct === 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+                              style={{ width: `${sdPct}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] text-gray-500 w-6">{sdPct}%</span>
+                        </>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-gray-400 w-12 flex-shrink-0">Game Day</span>
