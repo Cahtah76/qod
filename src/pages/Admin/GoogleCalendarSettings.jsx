@@ -27,6 +27,7 @@ export default function GoogleCalendarSettings() {
       createFieldCall: true,
       fieldCallDurationMins: 480,
       sendInvites: true,
+      meetLink: '',
     },
   })
 
@@ -264,8 +265,8 @@ export default function GoogleCalendarSettings() {
               </div>
             </div>
 
-            {/* Invites toggle */}
-            <div>
+            {/* Invites + Meet link */}
+            <div className="space-y-3">
               <label className="label mb-2">Invites</label>
               <Toggle
                 checked={settings.settings.sendInvites}
@@ -273,6 +274,18 @@ export default function GoogleCalendarSettings() {
                 label="Send email invites to attendees"
                 desc="Google will email crew members when calendar events are created or updated"
               />
+              <div>
+                <label className="label">Google Meet link</label>
+                <input
+                  className="input font-mono text-sm"
+                  placeholder="meet.google.com/xxx-xxxx-xxx"
+                  value={settings.settings.meetLink || ''}
+                  onChange={(e) => setSetting('meetLink', e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Added to all calendar events as a video conference link. Leave blank to omit.
+                </p>
+              </div>
             </div>
 
             <div className="flex justify-end">

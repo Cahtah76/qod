@@ -75,6 +75,7 @@ const DEFAULT_SETTINGS = {
   createFieldCall: true,
   fieldCallDurationMins: 480,   // 8 hours
   sendInvites: true,
+  meetLink: '',
 }
 
 export function getStatus() {
@@ -133,26 +134,35 @@ export async function syncEvent(appEvent) {
 
   const sendUpdates = settings.sendInvites ? 'all' : 'none'
 
+  // Build Google Meet conference data if a link is configured
+  const meetUrl = settings.meetLink?.trim()
+  const conferenceData = meetUrl ? {
+    conferenceSolution: { key: { type: 'hangoutsMeet' } },
+    entryPoints: [{
+      entryPointType: 'video',
+      uri: meetUrl.startsWith('http') ? meetUrl : `https://${meetUrl}`,
+      label: meetUrl.replace(/^https?:\/\//, ''),
+    }],
+  } : undefined
+
   async function upsertCalEvent(existingId, body) {
+    const requestBody = conferenceData ? { ...body, conferenceData } : body
+    const extraParams = conferenceData ? { conferenceDataVersion: 1 } : {}
     if (existingId) {
       try {
         const { data } = await cal.events.update({
-          calendarId,
-          eventId: existingId,
-          requestBody: body,
-          sendUpdates,
+          calendarId, eventId: existingId, requestBody, sendUpdates, ...extraParams,
         })
         return data.id
       } catch (err) {
-        // Event was deleted from Google side — recreate it
         if (err.code === 404 || err.code === 410) {
-          const { data } = await cal.events.insert({ calendarId, requestBody: body, sendUpdates })
+          const { data } = await cal.events.insert({ calendarId, requestBody, sendUpdates, ...extraParams })
           return data.id
         }
         throw err
       }
     }
-    const { data } = await cal.events.insert({ calendarId, requestBody: body, sendUpdates })
+    const { data } = await cal.events.insert({ calendarId, requestBody, sendUpdates, ...extraParams })
     return data.id
   }
 
