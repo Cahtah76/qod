@@ -611,7 +611,7 @@ function buildTaskNote(line, newStatus, allTasks) {
     .replace(/\s{2,}/g, ' ')
     .trim()
   const note = (stripped.length > 8 ? stripped : clean).replace(/^./, c => c.toUpperCase())
-  return note.slice(0, 120) || `Marked ${newStatus} in standup`
+  return note || `Marked ${newStatus} in standup`
 }
 
 function buildProjectNote(lines, taskUpdates, allTasks) {
@@ -637,7 +637,7 @@ function buildProjectNote(lines, taskUpdates, allTasks) {
   if (flagged.length) parts.push(`Noted: ${flagged.join('; ')}`)
   if (!parts.length) parts.push(`${lines.length} items discussed`)
 
-  return `Standup ${date} — ${parts.join(' · ')}`.slice(0, 400)
+  return `Standup ${date} — ${parts.join(' · ')}`
 }
 
 function parseStandupLocally(notesText, project) {
