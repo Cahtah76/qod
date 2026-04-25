@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader.jsx'
 import Modal from '../../components/ui/Modal.jsx'
-import { parseStandupNotes } from '../../utils/ai.js'
 
 
 const KANBAN_COLUMNS = ['Backlog', 'In Progress', 'In Review', 'Done']
@@ -574,6 +573,75 @@ function TimelineView({ sprints, projectColor, onSprintClick, onAddSprint }) {
   )
 }
 
+// ─── Local standup parser ─────────────────────────────────────────────────────
+
+const DONE_KW     = ['done', 'complete', 'completed', 'finished', 'merged', 'shipped', 'deployed', 'closed', 'fixed', 'resolved', 'wrapped up']
+const REVIEW_KW   = ['in review', 'under review', 'code review', 'pr up', 'pr open', 'pull request', 'reviewing']
+const PROGRESS_KW = ['in progress', 'started', 'working on', 'wip', 'began', 'ongoing', 'continuing', 'picked up']
+
+function detectStatus(line) {
+  const l = line.toLowerCase()
+  if (DONE_KW.some(k => l.includes(k))) return 'Done'
+  if (REVIEW_KW.some(k => l.includes(k))) return 'In Review'
+  if (PROGRESS_KW.some(k => l.includes(k))) return 'In Progress'
+  return null
+}
+
+function taskMatchScore(line, task) {
+  const l = line.toLowerCase()
+  const words = task.title.toLowerCase().split(/\s+/).filter(w => w.length > 3)
+  if (!words.length) return 0
+  return words.filter(w => l.includes(w)).length / words.length
+}
+
+function parseStandupLocally(notesText, project) {
+  const lines = notesText.split('\n').map(l => l.trim()).filter(Boolean)
+  const allTasks = project.sprints.flatMap(s => s.tasks.map(t => ({ ...t, sprintId: s.id })))
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+
+  const taskUpdates = []
+  const usedTaskIds = new Set()
+
+  for (const line of lines) {
+    let bestTask = null, bestScore = 0
+    for (const task of allTasks) {
+      if (usedTaskIds.has(task.id)) continue
+      const score = taskMatchScore(line, task)
+      if (score > bestScore) { bestScore = score; bestTask = task }
+    }
+    if (bestTask && bestScore >= 0.4) {
+      const newStatus = detectStatus(line)
+      if (newStatus && newStatus !== bestTask.status) {
+        taskUpdates.push({ taskId: bestTask.id, newStatus, note: line.slice(0, 120) })
+        usedTaskIds.add(bestTask.id)
+      }
+    }
+  }
+
+  // New tasks: bullet lines that don't match any existing task
+  const newTasks = []
+  const activeSprint = project.sprints.find(s => parseDate(s.startDate) <= today && parseDate(s.endDate) >= today)
+  for (const line of lines) {
+    if (!/^[-•*]\s+/.test(line) && !/^(?:new|add|todo)[:\s]/i.test(line)) continue
+    const title = line.replace(/^[-•*]\s+/, '').replace(/^(?:new|add|todo)[:\s]+/i, '').trim()
+    if (title.length < 6) continue
+    const alreadyMatched = allTasks.some(t => taskMatchScore(line, t) >= 0.4)
+    if (!alreadyMatched) {
+      newTasks.push({ title, assignee: 'TBD', priority: 'Med', tag: '', sprintId: activeSprint?.id || null })
+    }
+  }
+
+  // Project note from first substantial non-bullet line
+  const noteLines = lines.filter(l => l.length > 15 && !/^[-•*]/.test(l) && !/^attendees?:/i.test(l))
+  const projectNote = noteLines.slice(0, 3).join(' ').slice(0, 300) || notesText.slice(0, 300)
+
+  const summary = (taskUpdates.length || newTasks.length)
+    ? `Matched ${taskUpdates.length} task update${taskUpdates.length !== 1 ? 's' : ''} and ${newTasks.length} new item${newTasks.length !== 1 ? 's' : ''} from keyword analysis.`
+    : 'No task matches found — standup notes will be saved as a project log entry.'
+
+  return { summary, taskUpdates, newTasks, projectNote, sprintNotes: [] }
+}
+
 // ─── Standup Import Modal ─────────────────────────────────────────────────────
 
 function StandupImportModal({ open, onClose, project, onApply }) {
@@ -586,25 +654,13 @@ function StandupImportModal({ open, onClose, project, onApply }) {
 
   function reset() { setStep('input'); setNotesText(''); setPreview(null); setError('') }
 
-  async function analyze() {
+  function analyze() {
     if (!notesText.trim()) return
-    setStep('loading')
-    try {
-      const result = await parseStandupNotes(notesText, {
-        name: project.name,
-        sprints: project.sprints.map(s => ({
-          id: s.id, name: s.name, startDate: s.startDate, endDate: s.endDate,
-          tasks: s.tasks.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assignee })),
-        })),
-      })
-      setPreview(result)
-      setSelTaskUpdates(new Set((result.taskUpdates || []).map(u => u.taskId)))
-      setSelNewTasks(new Set((result.newTasks || []).map((_, i) => i)))
-      setStep('preview')
-    } catch (err) {
-      setError(err.message)
-      setStep('error')
-    }
+    const result = parseStandupLocally(notesText, project)
+    setPreview(result)
+    setSelTaskUpdates(new Set((result.taskUpdates || []).map(u => u.taskId)))
+    setSelNewTasks(new Set((result.newTasks || []).map((_, i) => i)))
+    setStep('preview')
   }
 
   function apply() {
@@ -647,7 +703,7 @@ function StandupImportModal({ open, onClose, project, onApply }) {
           {step === 'input' && (
             <div className="space-y-3">
               <p className="text-sm text-gray-500">
-                Paste your Gemini meeting notes below. Claude will match them to existing tasks and suggest status updates, new items, and running notes.
+                Paste your Gemini meeting notes below. Tasks will be matched by keyword and status updates detected automatically.
               </p>
               <textarea
                 autoFocus
@@ -657,13 +713,6 @@ function StandupImportModal({ open, onClose, project, onApply }) {
                 value={notesText}
                 onChange={e => setNotesText(e.target.value)}
               />
-            </div>
-          )}
-
-          {step === 'loading' && (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-gray-500">Analyzing notes…</p>
             </div>
           )}
 
@@ -678,7 +727,7 @@ function StandupImportModal({ open, onClose, project, onApply }) {
             <div className="space-y-5">
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <Bot size={13} className="text-blue-600" />
+                  <Sparkles size={13} className="text-blue-600" />
                   <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Summary</span>
                 </div>
                 <p className="text-sm text-blue-900">{preview.summary}</p>
