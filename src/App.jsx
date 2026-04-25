@@ -19,6 +19,7 @@ import IssuesPage from './pages/Issues/IssuesPage.jsx'
 import DocumentationPage from './pages/Documentation/DocumentationPage.jsx'
 import ReportsPage, { ReportDetail, ReportForm } from './pages/Reports/ReportsPage.jsx'
 import AdminPage from './pages/Admin/AdminPage.jsx'
+import RoadmapPage from './pages/Roadmap/RoadmapPage.jsx'
 
 // ─── Route guards ─────────────────────────────────────────────────────────────
 function RequireAuth({ children }) {
@@ -65,6 +66,8 @@ export default function App() {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/reports/new" element={<ReportForm />} />
               <Route path="/reports/:id" element={<ReportDetail />} />
+
+              <Route path="/roadmap" element={<RoadmapPage />} />
 
               {/* Admin-only */}
               <Route path="/admin" element={<RequireAdmin><AdminPage /></RequireAdmin>} />

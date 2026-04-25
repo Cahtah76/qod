@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import {
   LayoutDashboard, Calendar, MapPin, Package, Users, ClipboardList,
   AlertTriangle, FileText, BarChart2, Settings, ChevronLeft, ChevronRight,
-  Radio, BookOpen, UserCheck, Menu
+  Radio, BookOpen, UserCheck, Menu, GitBranch
 } from 'lucide-react'
 
 const navSections = [
@@ -16,6 +16,7 @@ const navSections = [
       { to: '/scheduling', icon: UserCheck, label: 'Scheduling' },
       { to: '/issues', icon: AlertTriangle, label: 'Issues' },
       { to: '/reports', icon: BarChart2, label: 'Reports' },
+      { to: '/roadmap', icon: GitBranch, label: 'Roadmap' },
     ],
   },
   {

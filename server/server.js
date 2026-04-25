@@ -144,6 +144,117 @@ Use standard team abbreviations (ATL, BOS, LAL, GSW, etc.). Infer the season fro
   }
 })
 
+// ── AI standup notes parser ───────────────────────────────────────────────────
+app.post('/api/ai/parse-standup', async (req, res) => {
+  const { notes, project } = req.body
+  if (!notes || !project) return res.status(400).json({ error: 'notes and project are required' })
+
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' })
+
+  const taskList = project.sprints.flatMap(s =>
+    s.tasks.map(t => ({ id: t.id, title: t.title, status: t.status, assignee: t.assignee, sprintId: s.id, sprintName: s.name }))
+  )
+  const sprintList = project.sprints.map(s => ({ id: s.id, name: s.name, startDate: s.startDate, endDate: s.endDate }))
+
+  try {
+    const client = new Anthropic({ apiKey })
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      system: `You are a project standup analyzer. Given meeting notes and the current project state, extract structured updates.
+Return ONLY valid JSON — no markdown, no explanation:
+{
+  "summary": "1-2 sentence summary of the standup",
+  "taskUpdates": [{ "taskId": "string", "newStatus": "Backlog|In Progress|In Review|Done", "note": "brief reason under 80 chars" }],
+  "newTasks": [{ "title": "string", "assignee": "JC|MR|AP|BC|TBD", "priority": "High|Med|Low", "tag": "string", "sprintId": "string or null" }],
+  "projectNote": "key decisions and blockers from this standup as a running log entry",
+  "sprintNotes": [{ "sprintId": "string", "note": "sprint-level observation under 100 chars" }]
+}
+Rules:
+- Only flag a taskUpdate when the notes clearly imply a status change (finished/completed/started/blocked/reviewing)
+- Match tasks by approximate name — tolerate wording differences
+- Assignee initials: JC=James, MR=Mark, AP=Amy, BC=Brian, TBD=unknown
+- sprintId for new tasks: best-matching sprint by topic, or null
+- Empty arrays when nothing applies`,
+      messages: [{ role: 'user', content: `Project: ${project.name}\n\nSprints:\n${JSON.stringify(sprintList)}\n\nTasks:\n${JSON.stringify(taskList)}\n\nMeeting Notes:\n${notes}` }],
+    })
+    const raw = response.content[0].text.trim()
+    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+    res.json(JSON.parse(clean))
+  } catch (err) {
+    console.error('Standup parse error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── AI project status summary ─────────────────────────────────────────────────
+app.post('/api/ai/project-summary', async (req, res) => {
+  const { project } = req.body
+  if (!project) return res.status(400).json({ error: 'project is required' })
+
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return res.status(503).json({ error: 'ANTHROPIC_API_KEY is not configured on the server.' })
+
+  const sprintData = project.sprints.map(s => {
+    const done = s.tasks.filter(t => t.status === 'Done').length
+    const inProgress = s.tasks.filter(t => t.status === 'In Progress').length
+    const inReview = s.tasks.filter(t => t.status === 'In Review').length
+    const total = s.tasks.length
+    return {
+      name: s.name, startDate: s.startDate, endDate: s.endDate,
+      pct: total ? Math.round(done / total * 100) : 0,
+      tasks: { total, done, inProgress, inReview, backlog: total - done - inProgress - inReview },
+      notes: (s.notes || []).map(n => n.text),
+      taskNotes: s.tasks.filter(t => t.notes?.length).map(t => ({
+        title: t.title, status: t.status, notes: t.notes.map(n => n.text),
+      })),
+    }
+  })
+
+  const recentNotes = [
+    ...(project.notes || []).map(n => ({ ctx: 'project', text: n.text, ts: n.createdAt, source: n.source })),
+    ...project.sprints.flatMap(s => [
+      ...(s.notes || []).map(n => ({ ctx: `sprint: ${s.name}`, text: n.text, ts: n.createdAt, source: n.source })),
+      ...s.tasks.flatMap(t => (t.notes || []).map(n => ({ ctx: `task: ${t.title}`, text: n.text, ts: n.createdAt, source: n.source }))),
+    ]),
+  ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 25)
+
+  try {
+    const client = new Anthropic({ apiKey })
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: `You are a technical project analyst. Analyze the project and produce a concise status report a tech lead would find useful.
+
+Return ONLY valid JSON — no markdown:
+{
+  "health": "On Track|At Risk|Blocked",
+  "headline": "single punchy status line under 80 chars",
+  "summary": "2-3 sentences covering overall momentum, trajectory, and anything that stands out",
+  "highlights": ["up to 4 completed items or positive signals worth calling out"],
+  "risks": ["up to 3 blockers, risks, or concerns visible in the data or notes"],
+  "upcoming": ["up to 3 concrete next priorities or milestones"]
+}
+
+Health rubric:
+- On Track: active sprint progressing, no significant blockers noted
+- At Risk: notable incomplete work near deadline, or a blocker mentioned in notes
+- Blocked: explicit blocking issue in notes, or an active sprint with zero In Progress tasks and notes suggesting stall`,
+      messages: [{
+        role: 'user',
+        content: `Project: ${project.name}\nToday: ${new Date().toISOString().slice(0, 10)}\n\nSprints:\n${JSON.stringify(sprintData, null, 2)}\n\nNotes (most recent first):\n${JSON.stringify(recentNotes, null, 2)}`,
+      }],
+    })
+    const raw = response.content[0].text.trim()
+    const clean = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
+    res.json(JSON.parse(clean))
+  } catch (err) {
+    console.error('Project summary error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── ESPN game lookup ──────────────────────────────────────────────────────────
 app.get('/api/games/search', async (req, res) => {
   const { league, date } = req.query
