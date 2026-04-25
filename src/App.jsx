@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AppProvider } from './context/AppContext.jsx'
 import { AuthProvider, useAuth } from './context/AuthContext.jsx'
+import { RoadmapProvider } from './context/RoadmapContext.jsx'
 import Layout from './components/layout/Layout.jsx'
 import LoginPage from './pages/Auth/LoginPage.jsx'
 import ChangePasswordPage from './pages/Auth/ChangePasswordPage.jsx'
@@ -31,7 +32,7 @@ function RequireAuth({ children }) {
   if (mustChangePassword) {
     return <AppProvider><ChangePasswordPage /></AppProvider>
   }
-  return <AppProvider>{children}</AppProvider>
+  return <AppProvider><RoadmapProvider>{children}</RoadmapProvider></AppProvider>
 }
 
 function RequireAdmin({ children }) {

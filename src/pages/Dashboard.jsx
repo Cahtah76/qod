@@ -4,12 +4,40 @@ import { format, differenceInDays } from 'date-fns'
 import { tzAbbr } from '../utils/time.js'
 import {
   Calendar, AlertTriangle, Megaphone, ArrowRight, Clock,
-  MapPin, Radio, Building2, TrendingUp
+  MapPin, Radio, Building2, TrendingUp, GitBranch
 } from 'lucide-react'
 import { useApp, getEventStatus, getChecklistProgress, getEventStatusColor, getPriorityColor } from '../context/AppContext.jsx'
+import { useRoadmap } from '../context/RoadmapContext.jsx'
+
+function sprintPct(sprint) {
+  if (!sprint.tasks.length) return 0
+  return Math.round(sprint.tasks.filter(t => t.status === 'Done').length / sprint.tasks.length * 100)
+}
+
+function projectHealth(project) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const parseD = s => new Date(s + 'T00:00:00')
+  const allTasks = project.sprints.flatMap(s => s.tasks)
+  const completed = project.sprints.filter(s => parseD(s.endDate) < today)
+  const overdueIncomplete = completed.filter(s => sprintPct(s) < 70)
+  const highOpen = allTasks.filter(t => t.priority === 'High' && t.status !== 'Done')
+  if (overdueIncomplete.length > 0 || highOpen.length > 3) return 'At Risk'
+  return 'On Track'
+}
+
+function activeSprint(project) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const parseD = s => new Date(s + 'T00:00:00')
+  return (
+    project.sprints.find(s => parseD(s.startDate) <= today && parseD(s.endDate) >= today) ||
+    project.sprints.filter(s => parseD(s.endDate) < today).at(-1) ||
+    project.sprints[0]
+  )
+}
 
 export default function Dashboard() {
   const { state } = useApp()
+  const { projects } = useRoadmap()
   const now = new Date()
 
   const upcomingEvents = state.events
@@ -234,6 +262,60 @@ export default function Dashboard() {
                 })}
             </div>
           </div>
+        </div>
+      </div>
+      {/* Roadmap Overview */}
+      <div className="card">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <GitBranch size={14} className="text-blue-500" />
+            Roadmap
+          </h2>
+          <Link to="/roadmap" className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
+            Open <ArrowRight size={12} />
+          </Link>
+        </div>
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {projects.map(project => {
+            const allTasks = project.sprints.flatMap(s => s.tasks)
+            const doneTasks = allTasks.filter(t => t.status === 'Done')
+            const sprint = activeSprint(project)
+            const health = projectHealth(project)
+            const healthCls = health === 'At Risk'
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-green-100 text-green-700'
+            return (
+              <Link key={project.id} to="/roadmap"
+                className="border border-gray-200 rounded-lg p-3 hover:border-blue-200 hover:shadow-sm transition-all block">
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
+                    <span className="text-sm font-medium text-gray-900 truncate">{project.name}</span>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0 ${healthCls}`}>
+                    {health}
+                  </span>
+                </div>
+                {sprint ? (
+                  <>
+                    <p className="text-xs text-gray-500 truncate mb-1.5">{sprint.name}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full transition-all"
+                          style={{ width: `${sprintPct(sprint)}%`, backgroundColor: project.color }} />
+                      </div>
+                      <span className="text-[10px] text-gray-500 w-7 text-right tabular-nums">{sprintPct(sprint)}%</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-400 mb-3">No sprints yet</p>
+                )}
+                <p className="text-[10px] text-gray-400 mt-2">
+                  {doneTasks.length}/{allTasks.length} tasks done · {project.sprints.length} sprint{project.sprints.length !== 1 ? 's' : ''}
+                </p>
+              </Link>
+            )
+          })}
         </div>
       </div>
     </div>
