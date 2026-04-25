@@ -594,6 +594,52 @@ function taskMatchScore(line, task) {
   return words.filter(w => l.includes(w)).length / words.length
 }
 
+function cleanLine(line) {
+  return line
+    .replace(/^[-•*]\s+/, '')
+    .replace(/^(?:new|add|todo)[:\s]+/i, '')
+    .replace(/^[A-Za-z]{2,4}:\s+/, '')  // strip speaker initials like "JC: "
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildTaskNote(line, newStatus, allTasks) {
+  const clean = cleanLine(line)
+  // Remove redundant status keywords already conveyed by the status change
+  const stripped = clean
+    .replace(/\b(done|complete|completed|finished|merged|shipped|in progress|in review|started|wip|working on)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  const note = (stripped.length > 8 ? stripped : clean).replace(/^./, c => c.toUpperCase())
+  return note.slice(0, 120) || `Marked ${newStatus} in standup`
+}
+
+function buildProjectNote(lines, taskUpdates, allTasks) {
+  const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  const attendeeLine = lines.find(l => /^attendees?:/i.test(l))
+  const attendees = attendeeLine?.replace(/^attendees?:\s*/i, '').trim()
+
+  const updatedNames = taskUpdates.map(u => {
+    const task = allTasks.find(t => t.id === u.taskId)
+    return task ? `${task.title} (→ ${u.newStatus})` : null
+  }).filter(Boolean)
+
+  const flagged = lines
+    .filter(l => /blocked?|risk|decision|decided|concern|escalat/i.test(l))
+    .map(l => cleanLine(l))
+    .filter(l => l.length > 8)
+    .slice(0, 2)
+
+  const parts = []
+  if (attendees) parts.push(`Attendees: ${attendees}`)
+  if (updatedNames.length) parts.push(`Updates: ${updatedNames.join('; ')}`)
+  if (flagged.length) parts.push(`Noted: ${flagged.join('; ')}`)
+  if (!parts.length) parts.push(`${lines.length} items discussed`)
+
+  return `Standup ${date} — ${parts.join(' · ')}`.slice(0, 400)
+}
+
 function parseStandupLocally(notesText, project) {
   const lines = notesText.split('\n').map(l => l.trim()).filter(Boolean)
   const allTasks = project.sprints.flatMap(s => s.tasks.map(t => ({ ...t, sprintId: s.id })))
@@ -612,7 +658,7 @@ function parseStandupLocally(notesText, project) {
     if (bestTask && bestScore >= 0.4) {
       const newStatus = detectStatus(line)
       if (newStatus && newStatus !== bestTask.status) {
-        taskUpdates.push({ taskId: bestTask.id, newStatus, note: line.slice(0, 120) })
+        taskUpdates.push({ taskId: bestTask.id, newStatus, note: buildTaskNote(line, newStatus, allTasks) })
         usedTaskIds.add(bestTask.id)
       }
     }
@@ -623,7 +669,7 @@ function parseStandupLocally(notesText, project) {
   const activeSprint = project.sprints.find(s => parseDate(s.startDate) <= today && parseDate(s.endDate) >= today)
   for (const line of lines) {
     if (!/^[-•*]\s+/.test(line) && !/^(?:new|add|todo)[:\s]/i.test(line)) continue
-    const title = line.replace(/^[-•*]\s+/, '').replace(/^(?:new|add|todo)[:\s]+/i, '').trim()
+    const title = cleanLine(line)
     if (title.length < 6) continue
     const alreadyMatched = allTasks.some(t => taskMatchScore(line, t) >= 0.4)
     if (!alreadyMatched) {
@@ -631,9 +677,7 @@ function parseStandupLocally(notesText, project) {
     }
   }
 
-  // Project note from first substantial non-bullet line
-  const noteLines = lines.filter(l => l.length > 15 && !/^[-•*]/.test(l) && !/^attendees?:/i.test(l))
-  const projectNote = noteLines.slice(0, 3).join(' ').slice(0, 300) || notesText.slice(0, 300)
+  const projectNote = buildProjectNote(lines, taskUpdates, allTasks)
 
   const summary = (taskUpdates.length || newTasks.length)
     ? `Matched ${taskUpdates.length} task update${taskUpdates.length !== 1 ? 's' : ''} and ${newTasks.length} new item${newTasks.length !== 1 ? 's' : ''} from keyword analysis.`
