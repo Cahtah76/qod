@@ -16,7 +16,7 @@ const navSections = [
       { to: '/scheduling', icon: UserCheck, label: 'Scheduling' },
       { to: '/issues', icon: AlertTriangle, label: 'Issues' },
       { to: '/reports', icon: BarChart2, label: 'Reports' },
-      { to: '/roadmap', icon: GitBranch, label: 'Roadmap' },
+      { to: '/roadmap', icon: GitBranch, label: 'Project Management' },
     ],
   },
   {

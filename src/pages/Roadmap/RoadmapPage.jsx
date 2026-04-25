@@ -1217,7 +1217,7 @@ export default function RoadmapPage() {
   return (
     <div>
       <PageHeader
-        title="Roadmap"
+        title="Project Management"
         subtitle={`${project.sprints.length} sprints · ${totalTasks} tasks`}
         actions={
           <div className="flex items-center gap-2">
