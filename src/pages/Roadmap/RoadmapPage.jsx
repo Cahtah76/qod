@@ -513,8 +513,8 @@ function TimelineView({ sprints, projectColor, onSprintClick, onAddSprint }) {
   const [newSprint, setNewSprint] = useState({ name: '', startDate: '', endDate: '' })
 
   const allDates = sprints.flatMap(s => [parseDate(s.startDate), parseDate(s.endDate)])
-  const minDate = new Date(Math.min(...allDates) - 18 * 86400000)
-  const maxDate = new Date(Math.max(...allDates) + 18 * 86400000)
+  const minDate = allDates.length ? new Date(Math.min(...allDates) - 18 * 86400000) : new Date(Date.now() - 30 * 86400000)
+  const maxDate = allDates.length ? new Date(Math.max(...allDates) + 18 * 86400000) : new Date(Date.now() + 60 * 86400000)
   const totalMs = maxDate - minDate
 
   function msToX(ms) { return ((ms - minDate) / totalMs) * CANVAS_W }
@@ -1328,13 +1328,7 @@ export default function RoadmapPage() {
       />
 
       <div className="p-5 bg-gray-50 space-y-6">
-        {project.sprints.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <FolderOpen size={32} className="text-gray-300 mb-3" />
-            <p className="text-sm font-medium text-gray-500">No sprints yet</p>
-            <p className="text-xs text-gray-400 mt-1">Click anywhere on the timeline to create the first sprint.</p>
-          </div>
-        ) : view === 'timeline' ? (
+        {view === 'timeline' ? (
           <>
             <TimelineView
               sprints={project.sprints}
@@ -1342,6 +1336,13 @@ export default function RoadmapPage() {
               onSprintClick={setActiveSprint}
               onAddSprint={handleAddSprint}
             />
+            {project.sprints.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <FolderOpen size={28} className="text-gray-300 mb-2" />
+                <p className="text-sm font-medium text-gray-500">No sprints yet</p>
+                <p className="text-xs text-gray-400 mt-1">Click anywhere on the timeline above to create the first sprint.</p>
+              </div>
+            )}
 
             <ProjectStatusSummary project={project} />
 
