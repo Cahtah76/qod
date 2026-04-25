@@ -14,6 +14,7 @@ const pageTitles = {
   '/employees': 'Employees',
   '/documentation': 'Documentation & Training',
   '/admin': 'Admin Dashboard',
+  '/roadmap': 'Project Management',
 }
 
 export default function Layout() {
