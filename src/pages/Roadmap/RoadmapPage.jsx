@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader.jsx'
 import Modal from '../../components/ui/Modal.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 
 
 const KANBAN_COLUMNS = ['Backlog', 'In Progress', 'In Review', 'Done']
@@ -85,7 +86,9 @@ function PriorityBadge({ priority }) {
 
 // ─── NotesThread ──────────────────────────────────────────────────────────────
 
-function NotesThread({ notes = [], onAdd }) {
+function NotesThread({ notes = [], onAdd, onDelete }) {
+  const { can } = useAuth()
+  const isAdmin = can('admin')
   const [text, setText] = useState('')
 
   function submit() {
@@ -101,15 +104,24 @@ function NotesThread({ notes = [], onAdd }) {
       ) : (
         <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
           {notes.map(note => (
-            <div key={note.id} className="bg-gray-50 rounded-lg px-3 py-2.5">
+            <div key={note.id} className="bg-gray-50 rounded-lg px-3 py-2.5 group relative">
               {note.source === 'standup' && (
                 <div className="flex items-center gap-1 mb-1">
                   <Bot size={10} className="text-blue-500" />
                   <span className="text-[9px] font-semibold text-blue-500 uppercase tracking-wider">Standup</span>
                 </div>
               )}
-              <p className="text-xs text-gray-800 leading-relaxed">{note.text}</p>
+              <p className="text-xs text-gray-800 leading-relaxed pr-5">{note.text}</p>
               <p className="text-[10px] text-gray-400 mt-1">{formatRelTime(note.createdAt)}</p>
+              {isAdmin && onDelete && (
+                <button
+                  onClick={() => onDelete(note.id)}
+                  className="absolute top-2 right-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                  title="Delete note"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -140,6 +152,9 @@ function NotesThread({ notes = [], onAdd }) {
 function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
   function handleAddNote(text) {
     onUpdate({ ...task, notes: [...(task.notes || []), makeNote(text)] })
+  }
+  function handleDeleteNote(id) {
+    onUpdate({ ...task, notes: (task.notes || []).filter(n => n.id !== id) })
   }
   function handleStatusChange(newStatus) {
     onUpdate({ ...task, status: newStatus })
@@ -176,7 +191,7 @@ function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
 
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Notes</p>
-            <NotesThread notes={task.notes || []} onAdd={handleAddNote} />
+            <NotesThread notes={task.notes || []} onAdd={handleAddNote} onDelete={handleDeleteNote} />
           </div>
         </div>
       </div>
@@ -215,6 +230,9 @@ function SprintDetail({ sprint, onClose, onUpdateSprint }) {
 
   function handleAddSprintNote(text) {
     onUpdateSprint({ ...sprint, notes: [...(sprint.notes || []), makeNote(text)] })
+  }
+  function handleDeleteSprintNote(id) {
+    onUpdateSprint({ ...sprint, notes: (sprint.notes || []).filter(n => n.id !== id) })
   }
 
   const pct = completionPct(sprint.tasks)
@@ -329,7 +347,7 @@ function SprintDetail({ sprint, onClose, onUpdateSprint }) {
               {/* Sprint notes */}
               <div className="card p-4">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sprint Notes</p>
-                <NotesThread notes={sprint.notes || []} onAdd={handleAddSprintNote} />
+                <NotesThread notes={sprint.notes || []} onAdd={handleAddSprintNote} onDelete={handleDeleteSprintNote} />
               </div>
 
               {/* Per-task notes */}
@@ -1225,6 +1243,9 @@ export default function RoadmapPage() {
   function handleAddProjectNote(text) {
     updateProject({ ...project, notes: [...(project.notes || []), makeNote(text)] })
   }
+  function handleDeleteProjectNote(id) {
+    updateProject({ ...project, notes: (project.notes || []).filter(n => n.id !== id) })
+  }
 
   function handleApplyStandup({ preview, taskUpdates, newTasks }) {
     const now = new Date().toISOString()
@@ -1372,7 +1393,7 @@ export default function RoadmapPage() {
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
               <div className="card p-4">
-                <NotesThread notes={project.notes || []} onAdd={handleAddProjectNote} />
+                <NotesThread notes={project.notes || []} onAdd={handleAddProjectNote} onDelete={handleDeleteProjectNote} />
               </div>
             </div>
           </>
