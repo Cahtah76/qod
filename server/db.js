@@ -21,6 +21,7 @@ const TABLES = [
   'reports',
   'announcements',
   'documentation',
+  'roadmap_projects',
 ]
 
 for (const table of TABLES) {

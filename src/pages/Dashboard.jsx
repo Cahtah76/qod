@@ -37,7 +37,7 @@ function activeSprint(project) {
 
 export default function Dashboard() {
   const { state } = useApp()
-  const { projects } = useRoadmap()
+  const { projects, loaded: roadmapLoaded } = useRoadmap()
   const now = new Date()
 
   const upcomingEvents = state.events
@@ -265,7 +265,7 @@ export default function Dashboard() {
         </div>
       </div>
       {/* Roadmap Overview */}
-      <div className="card">
+      {roadmapLoaded && <div className="card">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
             <GitBranch size={14} className="text-blue-500" />
@@ -317,7 +317,7 @@ export default function Dashboard() {
             )
           })}
         </div>
-      </div>
+      </div>}
     </div>
   )
 }

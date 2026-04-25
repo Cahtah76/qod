@@ -1099,7 +1099,7 @@ function ProjectSelector({ projects, activeId, onSelect, onNew, onDelete }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function RoadmapPage() {
-  const { projects, setProjects } = useRoadmap()
+  const { projects, loaded, updateProject, addProject, removeProject } = useRoadmap()
   const [activeProjectId, setActiveProjectId] = useState(() => projects[0]?.id)
   const [view, setView] = useState('timeline')
   const [activeSprint, setActiveSprint] = useState(null)
@@ -1107,11 +1107,14 @@ export default function RoadmapPage() {
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProject, setNewProject] = useState({ name: '', color: PROJECT_COLORS[2] })
 
-  const project = projects.find(p => p.id === activeProjectId) || projects[0]
+  // Once data loads, default to first project if nothing is selected
+  React.useEffect(() => {
+    if (loaded && !activeProjectId && projects.length > 0) {
+      setActiveProjectId(projects[0].id)
+    }
+  }, [loaded, projects])
 
-  function updateProject(updated) {
-    setProjects(prev => prev.map(p => p.id === updated.id ? updated : p))
-  }
+  const project = projects.find(p => p.id === activeProjectId) || projects[0]
 
   function handleUpdateSprint(sprint) {
     const updated = { ...project, sprints: project.sprints.map(s => s.id === sprint.id ? sprint : s) }
@@ -1188,7 +1191,7 @@ export default function RoadmapPage() {
   function handleCreateProject() {
     if (!newProject.name.trim()) return
     const p = { id: newId(), name: newProject.name.trim(), color: newProject.color, notes: [], sprints: [] }
-    setProjects(prev => [...prev, p])
+    addProject(p)
     setActiveProjectId(p.id)
     setNewProject(prev => ({ name: '', color: PROJECT_COLORS[projects.length % PROJECT_COLORS.length] }))
     setShowNewProject(false)
@@ -1196,12 +1199,20 @@ export default function RoadmapPage() {
 
   function handleDeleteProject(id) {
     const remaining = projects.filter(p => p.id !== id)
-    setProjects(remaining)
+    removeProject(id)
     if (activeProjectId === id) setActiveProjectId(remaining[0]?.id)
   }
 
-  const totalTasks = project.sprints.reduce((n, s) => n + s.tasks.length, 0)
-  const totalNotes = (project.notes?.length || 0) + project.sprints.reduce((n, s) => n + (s.notes?.length || 0) + s.tasks.reduce((m, t) => m + (t.notes?.length || 0), 0), 0)
+  if (!loaded) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  const totalTasks = project?.sprints.reduce((n, s) => n + s.tasks.length, 0) ?? 0
+  const totalNotes = (project?.notes?.length || 0) + (project?.sprints.reduce((n, s) => n + (s.notes?.length || 0) + s.tasks.reduce((m, t) => m + (t.notes?.length || 0), 0), 0) ?? 0)
 
   return (
     <div>

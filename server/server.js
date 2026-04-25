@@ -357,6 +357,22 @@ app.post('/api/google/sync-all', async (_req, res) => {
   res.json(results)
 })
 
+// ── Roadmap projects ──────────────────────────────────────────────────────────
+app.get('/api/roadmap/projects', (_req, res) => {
+  res.json(q.getAll('roadmap_projects'))
+})
+
+app.put('/api/roadmap/projects/:id', (req, res) => {
+  const item = { ...req.body, id: req.params.id }
+  q.upsert('roadmap_projects', item)
+  res.json(item)
+})
+
+app.delete('/api/roadmap/projects/:id', (req, res) => {
+  q.del('roadmap_projects', req.params.id)
+  res.sendStatus(204)
+})
+
 // ── Employees — separate handler to hash passwords on write ───────────────────
 app.put('/api/employees/:id', (req, res) => {
   let item = { ...req.body, id: req.params.id }
