@@ -593,14 +593,19 @@ function TimelineView({ sprints, projectColor, onSprintClick, onAddSprint }) {
 
 // ─── Local standup parser ─────────────────────────────────────────────────────
 
-const DONE_KW     = ['done', 'complete', 'completed', 'finished', 'merged', 'shipped', 'deployed', 'closed', 'fixed', 'resolved', 'wrapped up']
-const REVIEW_KW   = ['in review', 'under review', 'code review', 'pr up', 'pr open', 'pull request', 'reviewing']
-const PROGRESS_KW = ['in progress', 'started', 'working on', 'wip', 'began', 'ongoing', 'continuing', 'picked up']
+const DONE_KW     = ['done', 'complete', 'completed', 'finished', 'merged', 'shipped', 'deployed', 'closed', 'fixed', 'resolved', 'wrapped up', 'signed off', 'live']
+const REVIEW_KW   = ['in review', 'under review', 'code review', 'pr up', 'pr open', 'pr is up', 'pull request', 'reviewing', 'waiting for review', 'needs review']
+const PROGRESS_KW = ['in progress', 'started', 'working on', 'wip', 'began', 'ongoing', 'continuing', 'picked up', 'taking on', 'resuming', 'will finish', 'almost done', 'nearly done']
+const BLOCKER_KW  = ['blocked', 'blocking', 'stuck', 'waiting on', 'depends on', 'can\'t proceed', 'need help', 'issue with', 'problem with', 'escalat']
 
-function detectStatus(line) {
-  const l = line.toLowerCase()
-  if (DONE_KW.some(k => l.includes(k))) return 'Done'
-  if (REVIEW_KW.some(k => l.includes(k))) return 'In Review'
+function detectStatus(text) {
+  const l = text.toLowerCase()
+  // Check negations — "not done", "isn't complete" etc. should not trigger
+  const negated = /\b(not|isn't|haven't|hasn't|didn't|no longer)\b/.test(l)
+  if (!negated) {
+    if (DONE_KW.some(k => l.includes(k))) return 'Done'
+    if (REVIEW_KW.some(k => l.includes(k))) return 'In Review'
+  }
   if (PROGRESS_KW.some(k => l.includes(k))) return 'In Progress'
   return null
 }
@@ -609,53 +614,118 @@ function taskMatchScore(line, task) {
   const l = line.toLowerCase()
   const words = task.title.toLowerCase().split(/\s+/).filter(w => w.length > 3)
   if (!words.length) return 0
-  return words.filter(w => l.includes(w)).length / words.length
+  // Bonus for consecutive word matches
+  const titleLower = task.title.toLowerCase()
+  const chunks = titleLower.match(/\w{4,}/g) || []
+  const consecutive = chunks.filter((w, i) => i > 0 && l.includes(`${chunks[i-1]} ${w}`)).length
+  return (words.filter(w => l.includes(w)).length / words.length) + consecutive * 0.15
 }
 
 function cleanLine(line) {
   return line
     .replace(/^[-•*]\s+/, '')
-    .replace(/^(?:new|add|todo)[:\s]+/i, '')
-    .replace(/^[A-Za-z]{2,4}:\s+/, '')  // strip speaker initials like "JC: "
+    .replace(/^(?:new|add|todo|action)[:\s]+/i, '')
+    .replace(/^[A-Za-z]{2,4}[:\s]\s+/, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-function buildTaskNote(line, newStatus, allTasks) {
-  const clean = cleanLine(line)
-  // Remove redundant status keywords already conveyed by the status change
-  const stripped = clean
-    .replace(/\b(done|complete|completed|finished|merged|shipped|in progress|in review|started|wip|working on)\b/gi, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-  const note = (stripped.length > 8 ? stripped : clean).replace(/^./, c => c.toUpperCase())
-  return note || `Marked ${newStatus} in standup`
+function extractDetail(contextLines) {
+  const all = contextLines.join(' ')
+  const details = []
+
+  // Percentage progress
+  const pct = all.match(/(\d+)\s*%/)
+  if (pct) details.push(`${pct[1]}% complete`)
+
+  // ETA / deadline
+  const eta = all.match(/\b(?:eta|by|due|end of|eod|eow|tomorrow|today)\s+([a-zA-Z0-9]+)/i)
+  if (eta) details.push(`ETA: ${eta[1]}`)
+
+  // Specific day mention
+  const day = all.match(/\b(monday|tuesday|wednesday|thursday|friday|this week|next week)\b/i)
+  if (day && !eta) details.push(`by ${day[1]}`)
+
+  // Blocker
+  const blockerLine = contextLines.find(l => BLOCKER_KW.some(k => l.toLowerCase().includes(k)))
+  if (blockerLine) details.push(`Blocked: ${cleanLine(blockerLine)}`)
+
+  return details
 }
 
-function buildProjectNote(lines, taskUpdates, allTasks) {
-  const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+function buildTaskNote(contextLines, newStatus) {
+  const primary = cleanLine(contextLines[0] || '')
+  const details = extractDetail(contextLines)
 
+  // Strip redundant status words from primary line
+  const stripped = primary
+    .replace(/\b(done|complete|completed|finished|merged|shipped|in progress|in review|started|wip|working on|confirmed|says?|mentioned|noted)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  const base = (stripped.length > 8 ? stripped : primary).replace(/^./, c => c.toUpperCase())
+
+  if (details.length) return `${base} — ${details.join(', ')}`
+  return base || `Marked ${newStatus} in standup`
+}
+
+function detectPriority(line) {
+  const l = line.toLowerCase()
+  if (/\b(urgent|critical|p0|blocker|blocking|asap|high priority)\b/.test(l)) return 'High'
+  if (/\b(low|minor|nice to have|eventually)\b/.test(l)) return 'Low'
+  return 'Med'
+}
+
+function buildProjectNote(lines, taskUpdates, newTasks, allTasks) {
+  const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const sentences = []
+
+  // Attendees
   const attendeeLine = lines.find(l => /^attendees?:/i.test(l))
   const attendees = attendeeLine?.replace(/^attendees?:\s*/i, '').trim()
+  if (attendees) sentences.push(`Attendees: ${attendees}.`)
 
-  const updatedNames = taskUpdates.map(u => {
-    const task = allTasks.find(t => t.id === u.taskId)
-    return task ? `${task.title} (→ ${u.newStatus})` : null
-  }).filter(Boolean)
+  // Completed work
+  const doneUpdates = taskUpdates.filter(u => u.newStatus === 'Done')
+  if (doneUpdates.length) {
+    const names = doneUpdates.map(u => allTasks.find(t => t.id === u.taskId)?.title).filter(Boolean)
+    sentences.push(`Completed: ${names.join(', ')}.`)
+  }
 
-  const flagged = lines
-    .filter(l => /blocked?|risk|decision|decided|concern|escalat/i.test(l))
-    .map(l => cleanLine(l))
-    .filter(l => l.length > 8)
-    .slice(0, 2)
+  // Active work with context
+  const activeUpdates = taskUpdates.filter(u => u.newStatus === 'In Progress' || u.newStatus === 'In Review')
+  if (activeUpdates.length) {
+    const items = activeUpdates.map(u => {
+      const task = allTasks.find(t => t.id === u.taskId)
+      if (!task) return null
+      const detail = u.note && u.note !== `Marked ${u.newStatus} in standup` ? ` (${u.note})` : ''
+      return `${task.title}${detail}`
+    }).filter(Boolean)
+    sentences.push(`In progress: ${items.join('; ')}.`)
+  }
 
-  const parts = []
-  if (attendees) parts.push(`Attendees: ${attendees}`)
-  if (updatedNames.length) parts.push(`Updates: ${updatedNames.join('; ')}`)
-  if (flagged.length) parts.push(`Noted: ${flagged.join('; ')}`)
-  if (!parts.length) parts.push(`${lines.length} items discussed`)
+  // Blockers
+  const blockerLines = lines.filter(l => BLOCKER_KW.some(k => l.toLowerCase().includes(k)))
+  if (blockerLines.length) {
+    const cleaned = blockerLines.map(cleanLine).filter(l => l.length > 5)
+    if (cleaned.length) sentences.push(`Blockers: ${cleaned.join('; ')}.`)
+  }
 
-  return `Standup ${date} — ${parts.join(' · ')}`
+  // Decisions / agreements
+  const decisionLines = lines.filter(l => /\b(decided|decision|agreed|agreement|going with|will proceed|confirmed|approved)\b/i.test(l))
+  if (decisionLines.length) {
+    const cleaned = decisionLines.map(cleanLine).filter(l => l.length > 5).slice(0, 2)
+    if (cleaned.length) sentences.push(`Decisions: ${cleaned.join('; ')}.`)
+  }
+
+  // New tasks added
+  if (newTasks.length) {
+    sentences.push(`New items raised: ${newTasks.map(t => t.title).join(', ')}.`)
+  }
+
+  if (sentences.length === 0) sentences.push(`Standup held — ${lines.length} items discussed.`)
+
+  return `Standup ${date} — ${sentences.join(' ')}`
 }
 
 function parseStandupLocally(notesText, project) {
@@ -663,43 +733,72 @@ function parseStandupLocally(notesText, project) {
   const allTasks = project.sprints.flatMap(s => s.tasks.map(t => ({ ...t, sprintId: s.id })))
   const today = new Date(); today.setHours(0, 0, 0, 0)
 
+  // Build a map of task → all lines that mention it
+  const taskContextMap = new Map()
+  for (const task of allTasks) {
+    const related = lines.filter(l => taskMatchScore(l, task) >= 0.35)
+    if (related.length) taskContextMap.set(task.id, related)
+  }
+
+  // Determine status from all context lines combined
   const taskUpdates = []
   const usedTaskIds = new Set()
 
-  for (const line of lines) {
-    let bestTask = null, bestScore = 0
-    for (const task of allTasks) {
-      if (usedTaskIds.has(task.id)) continue
-      const score = taskMatchScore(line, task)
-      if (score > bestScore) { bestScore = score; bestTask = task }
-    }
-    if (bestTask && bestScore >= 0.4) {
-      const newStatus = detectStatus(line)
-      if (newStatus && newStatus !== bestTask.status) {
-        taskUpdates.push({ taskId: bestTask.id, newStatus, note: buildTaskNote(line, newStatus, allTasks) })
-        usedTaskIds.add(bestTask.id)
-      }
+  // Score each task against all its context lines and pick the best status signal
+  for (const task of allTasks) {
+    if (usedTaskIds.has(task.id)) continue
+    const context = taskContextMap.get(task.id)
+    if (!context?.length) continue
+
+    // Use combined context for status detection — stronger signal
+    const combinedText = context.join(' ')
+    const newStatus = detectStatus(combinedText) || context.reduce((s, l) => s || detectStatus(l), null)
+    if (newStatus && newStatus !== task.status) {
+      taskUpdates.push({
+        taskId: task.id,
+        newStatus,
+        note: buildTaskNote(context, newStatus),
+      })
+      usedTaskIds.add(task.id)
     }
   }
 
-  // New tasks: bullet lines that don't match any existing task
+  // New tasks: bullet/action lines with no existing task match
   const newTasks = []
   const activeSprint = project.sprints.find(s => parseDate(s.startDate) <= today && parseDate(s.endDate) >= today)
   for (const line of lines) {
-    if (!/^[-•*]\s+/.test(line) && !/^(?:new|add|todo)[:\s]/i.test(line)) continue
+    const isBullet = /^[-•*]\s+/.test(line)
+    const isAction = /^(?:new|add|todo|action item)[:\s]/i.test(line)
+    if (!isBullet && !isAction) continue
     const title = cleanLine(line)
     if (title.length < 6) continue
-    const alreadyMatched = allTasks.some(t => taskMatchScore(line, t) >= 0.4)
-    if (!alreadyMatched) {
-      newTasks.push({ title, assignee: 'TBD', priority: 'Med', tag: '', sprintId: activeSprint?.id || null })
-    }
+    if (allTasks.some(t => taskMatchScore(line, t) >= 0.35)) continue
+    newTasks.push({
+      title,
+      assignee: 'TBD',
+      priority: detectPriority(line),
+      tag: '',
+      sprintId: activeSprint?.id || null,
+    })
   }
 
-  const projectNote = buildProjectNote(lines, taskUpdates, allTasks)
+  const projectNote = buildProjectNote(lines, taskUpdates, newTasks, allTasks)
 
-  const summary = (taskUpdates.length || newTasks.length)
-    ? `Matched ${taskUpdates.length} task update${taskUpdates.length !== 1 ? 's' : ''} and ${newTasks.length} new item${newTasks.length !== 1 ? 's' : ''} from keyword analysis.`
-    : 'No task matches found — standup notes will be saved as a project log entry.'
+  // Richer preview summary
+  const doneCount = taskUpdates.filter(u => u.newStatus === 'Done').length
+  const activeCount = taskUpdates.filter(u => u.newStatus !== 'Done').length
+  const blockerCount = lines.filter(l => BLOCKER_KW.some(k => l.toLowerCase().includes(k))).length
+  let summary = ''
+  if (!taskUpdates.length && !newTasks.length) {
+    summary = 'No task matches found — notes will be saved as a project log entry.'
+  } else {
+    const parts = []
+    if (doneCount) parts.push(`${doneCount} completed`)
+    if (activeCount) parts.push(`${activeCount} in progress/review`)
+    if (newTasks.length) parts.push(`${newTasks.length} new item${newTasks.length !== 1 ? 's' : ''}`)
+    if (blockerCount) parts.push(`${blockerCount} blocker${blockerCount !== 1 ? 's' : ''} flagged`)
+    summary = parts.join(' · ') + '.'
+  }
 
   return { summary, taskUpdates, newTasks, projectNote, sprintNotes: [] }
 }
