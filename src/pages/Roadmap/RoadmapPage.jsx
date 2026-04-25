@@ -1355,7 +1355,7 @@ export default function RoadmapPage() {
                 </h2>
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
-              <div className="card p-4 max-w-2xl">
+              <div className="card p-4">
                 <NotesThread notes={project.notes || []} onAdd={handleAddProjectNote} />
               </div>
             </div>
