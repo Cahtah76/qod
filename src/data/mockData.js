@@ -48,6 +48,16 @@ export const initialData = {
 
   employees: [
     {
+      id: 'test-seed-account',
+      name: 'Test User',
+      email: 'test@quintar.ai',
+      phone: '',
+      role: 'Admin',
+      avatar: null,
+      assignedEvents: [],
+      mustChangePassword: true,
+    },
+    {
       id: 'e1',
       name: 'Alex Rivera',
       email: 'arivera@quintar.ai',
