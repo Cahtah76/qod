@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useRoadmap } from '../../context/RoadmapContext.jsx'
+import { useApp } from '../../context/AppContext.jsx'
 import {
   Plus, X, ArrowLeft, Search, GripVertical, Calendar,
   ChevronDown, FolderOpen, Trash2, Sparkles, Send, Bot,
@@ -32,7 +33,9 @@ const STATUS_DOT = {
   'In Progress': 'bg-yellow-500',
   'Backlog': 'bg-gray-400',
 }
-const ASSIGNEES = ['JC', 'MR', 'AP', 'BC', 'TBD']
+function employeeInitials(name) {
+  return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -150,19 +153,25 @@ function NotesThread({ notes = [], onAdd, onDelete }) {
 // ─── Task Detail Modal ────────────────────────────────────────────────────────
 
 function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
+  const { state } = useApp()
+  const assigneeOpts = [...state.employees.map(e => ({ label: e.name, value: employeeInitials(e.name) })), { label: 'TBD', value: 'TBD' }]
+  const [title, setTitle] = useState(task.title || '')
+  const [assignee, setAssignee] = useState(task.assignee || (assigneeOpts[0]?.value ?? ''))
+  const [priority, setPriority] = useState(task.priority || 'Med')
+  const [tag, setTag] = useState(task.tag || '')
+  const [status, setStatus] = useState(task.status || 'Backlog')
+  const [dueDate, setDueDate] = useState(task.dueDate || '')
   const [description, setDescription] = useState(task.description || '')
 
+  function commit(patch) {
+    onUpdate({ ...task, title, assignee, priority, tag, status, dueDate, description, ...patch })
+  }
+
   function handleAddNote(text) {
-    onUpdate({ ...task, notes: [...(task.notes || []), makeNote(text)] })
+    onUpdate({ ...task, title, assignee, priority, tag, status, dueDate, description, notes: [...(task.notes || []), makeNote(text)] })
   }
   function handleDeleteNote(id) {
     onUpdate({ ...task, notes: (task.notes || []).filter(n => n.id !== id) })
-  }
-  function handleStatusChange(newStatus) {
-    onUpdate({ ...task, status: newStatus })
-  }
-  function handleDescriptionBlur() {
-    if (description !== (task.description || '')) onUpdate({ ...task, description })
   }
 
   return (
@@ -172,37 +181,68 @@ function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
       <div className="bg-white rounded-lg shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-200">
           <div className="flex-1 min-w-0 pr-3">
-            <h2 className="text-sm font-semibold text-gray-900 leading-snug">{task.title}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{sprintName}</p>
+            <input
+              className="input w-full text-sm font-semibold py-1"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onBlur={() => commit({ title })}
+              onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+              placeholder="Task title"
+            />
+            <p className="text-xs text-gray-500 mt-1">{sprintName}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 mt-1">
             <X size={16} />
           </button>
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Avatar initials={task.assignee} />
-            <PriorityBadge priority={task.priority} />
-            <span className="text-xs text-gray-500 bg-gray-100 rounded px-2 py-0.5">{task.tag}</span>
-            <select
-              className="input py-1 text-sm w-auto ml-auto"
-              value={task.status}
-              onChange={e => handleStatusChange(e.target.value)}
-            >
-              {KANBAN_COLUMNS.map(c => <option key={c}>{c}</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Assignee</label>
+              <select className="input text-sm" value={assignee}
+                onChange={e => { setAssignee(e.target.value); commit({ assignee: e.target.value }) }}>
+                {assigneeOpts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Priority</label>
+              <select className="input text-sm" value={priority}
+                onChange={e => { setPriority(e.target.value); commit({ priority: e.target.value }) }}>
+                {['High', 'Med', 'Low'].map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Status</label>
+              <select className="input text-sm" value={status}
+                onChange={e => { setStatus(e.target.value); commit({ status: e.target.value }) }}>
+                {KANBAN_COLUMNS.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Due Date</label>
+              <input type="date" className="input text-sm" value={dueDate}
+                onChange={e => { setDueDate(e.target.value); commit({ dueDate: e.target.value }) }} />
+            </div>
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Description</p>
+            <label className="label">Tag</label>
+            <input className="input text-sm" placeholder="e.g. SDK, AR Engine" value={tag}
+              onChange={e => setTag(e.target.value)}
+              onBlur={() => commit({ tag })}
+              onKeyDown={e => e.key === 'Enter' && e.target.blur()} />
+          </div>
+
+          <div>
+            <label className="label">Description</label>
             <textarea
               className="input w-full text-sm resize-none"
               rows={3}
               placeholder="Add a description…"
               value={description}
               onChange={e => setDescription(e.target.value)}
-              onBlur={handleDescriptionBlur}
+              onBlur={() => commit({ description })}
             />
           </div>
 
@@ -219,6 +259,8 @@ function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
 // ─── Sprint Detail ────────────────────────────────────────────────────────────
 
 function SprintDetail({ sprint, onClose, onUpdateSprint }) {
+  const { state } = useApp()
+  const assigneeOpts = [...state.employees.map(e => ({ label: e.name, value: employeeInitials(e.name) })), { label: 'TBD', value: 'TBD' }]
   const [dragTaskId, setDragTaskId] = useState(null)
   const [tab, setTab] = useState('board')
   const [detailTask, setDetailTask] = useState(null)
@@ -468,7 +510,7 @@ function SprintDetail({ sprint, onClose, onUpdateSprint }) {
                 <div className="grid grid-cols-2 gap-2">
                   <div><label className="label">Assignee</label>
                     <select className="input text-sm" value={newTask.assignee} onChange={e => setNewTask(p => ({ ...p, assignee: e.target.value }))}>
-                      {ASSIGNEES.map(a => <option key={a}>{a}</option>)}</select></div>
+                      {assigneeOpts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}</select></div>
                   <div><label className="label">Priority</label>
                     <select className="input text-sm" value={newTask.priority} onChange={e => setNewTask(p => ({ ...p, priority: e.target.value }))}>
                       {['High', 'Med', 'Low'].map(p => <option key={p}>{p}</option>)}</select></div>
@@ -1259,6 +1301,8 @@ const BLANK_TASK = { title: '', assignee: 'JC', priority: 'Med', tag: '', status
 const BLANK_ADD_TASK = { ...BLANK_TASK, sprintId: '' }
 
 function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDelete }) {
+  const { state } = useApp()
+  const assigneeOpts = [...state.employees.map(e => ({ label: e.name, value: employeeInitials(e.name) })), { label: 'TBD', value: 'TBD' }]
   const isEditing = editingTask?.task.id === task.id
   if (isEditing) {
     const et = editingTask.task
@@ -1281,7 +1325,7 @@ function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDe
         <td className="table-cell">
           <select className="input text-xs py-1 w-auto" value={et.assignee}
             onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, assignee: e.target.value } }))}>
-            {ASSIGNEES.map(a => <option key={a}>{a}</option>)}
+            {assigneeOpts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
           </select>
         </td>
         <td className="table-cell">
@@ -1356,6 +1400,8 @@ function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDe
 }
 
 function BacklogView({ project, onUpdateProject }) {
+  const { state } = useApp()
+  const assigneeOpts = [...state.employees.map(e => ({ label: e.name, value: employeeInitials(e.name) })), { label: 'TBD', value: 'TBD' }]
   const { sprints } = project
   const [search, setSearch] = useState('')
   const [filterPriority, setFilterPriority] = useState('All')
@@ -1443,7 +1489,7 @@ function BacklogView({ project, onUpdateProject }) {
         {[
           { label: 'Priority', v: filterPriority, set: setFilterPriority, opts: ['All', 'High', 'Med', 'Low'] },
           { label: 'Status', v: filterStatus, set: setFilterStatus, opts: ['All', ...KANBAN_COLUMNS] },
-          { label: 'Assignee', v: filterAssignee, set: setFilterAssignee, opts: ['All', ...ASSIGNEES] },
+          { label: 'Assignee', v: filterAssignee, set: setFilterAssignee, opts: ['All', ...assigneeOpts.map(a => a.value)] },
         ].map(({ label, v, set, opts }) => (
           <select key={label} className="input py-1.5 text-sm w-auto" value={v} onChange={e => set(e.target.value)}>
             {opts.map(o => <option key={o} value={o}>{o === 'All' ? `${label}: All` : o}</option>)}
@@ -1520,7 +1566,7 @@ function BacklogView({ project, onUpdateProject }) {
                       <td className="table-cell">
                         <select className="input text-xs py-1 w-auto" value={newTask.assignee}
                           onChange={e => setNewTask(p => ({ ...p, assignee: e.target.value }))}>
-                          {ASSIGNEES.map(a => <option key={a}>{a}</option>)}
+                          {assigneeOpts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
                         </select>
                       </td>
                       <td className="table-cell">
@@ -1587,7 +1633,7 @@ function BacklogView({ project, onUpdateProject }) {
               <label className="label">Assignee</label>
               <select className="input w-full text-sm" value={addTaskForm.assignee}
                 onChange={e => setAddTaskForm(p => ({ ...p, assignee: e.target.value }))}>
-                {ASSIGNEES.map(a => <option key={a}>{a}</option>)}
+                {assigneeOpts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
               </select>
             </div>
             <div>
@@ -1731,6 +1777,8 @@ export default function RoadmapPage() {
   const [showStandup, setShowStandup] = useState(false)
   const [showNewProject, setShowNewProject] = useState(false)
   const [newProject, setNewProject] = useState({ name: '', color: PROJECT_COLORS[2] })
+  const [editingProjectId, setEditingProjectId] = useState(null)
+  const [editingProjectName, setEditingProjectName] = useState('')
 
   const project = projects.find(p => p.id === activeProjectId) || null
 
@@ -1865,13 +1913,39 @@ export default function RoadmapPage() {
                 return (
                   <button
                     key={p.id}
-                    onClick={() => setActiveProjectId(p.id)}
+                    onClick={() => { if (editingProjectId !== p.id) setActiveProjectId(p.id) }}
                     className="text-left border border-gray-200 rounded-xl p-4 bg-white hover:border-blue-300 hover:shadow-md transition-all group"
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: p.color }} />
-                        <span className="text-sm font-semibold text-gray-900 truncate">{p.name}</span>
+                        {editingProjectId === p.id ? (
+                          <input
+                            autoFocus
+                            className="input py-0.5 px-1 text-sm font-semibold flex-1 min-w-0"
+                            value={editingProjectName}
+                            onChange={e => setEditingProjectName(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            onBlur={e => {
+                              e.stopPropagation()
+                              const trimmed = editingProjectName.trim()
+                              if (trimmed && trimmed !== p.name) {
+                                updateProject({ ...p, name: trimmed })
+                              }
+                              setEditingProjectId(null)
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') e.target.blur()
+                              if (e.key === 'Escape') { setEditingProjectId(null) }
+                            }}
+                          />
+                        ) : (
+                          <span
+                            className="text-sm font-semibold text-gray-900 truncate"
+                            onClick={e => { e.stopPropagation(); setEditingProjectId(p.id); setEditingProjectName(p.name) }}
+                            title="Click to rename"
+                          >{p.name}</span>
+                        )}
                       </div>
                       <button
                         onClick={e => { e.stopPropagation(); handleDeleteProject(p.id) }}
