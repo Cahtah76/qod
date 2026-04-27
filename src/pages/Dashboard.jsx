@@ -9,17 +9,15 @@ import {
 import { useApp, getEventStatus, getChecklistProgress, getEventStatusColor, getPriorityColor } from '../context/AppContext.jsx'
 import { useRoadmap } from '../context/RoadmapContext.jsx'
 
-function sprintPct(sprint) {
-  if (!sprint.tasks.length) return 0
-  return Math.round(sprint.tasks.filter(t => t.status === 'Done').length / sprint.tasks.length * 100)
-}
-
 function projectHealth(project) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const parseD = s => new Date(s + 'T00:00:00')
   const allTasks = project.sprints.flatMap(s => s.tasks)
-  const completed = project.sprints.filter(s => parseD(s.endDate) < today)
-  const overdueIncomplete = completed.filter(s => sprintPct(s) < 70)
+  const overdueIncomplete = project.sprints.filter(s => {
+    if (parseD(s.endDate) >= today) return false
+    const pct = s.tasks.length ? Math.round(s.tasks.filter(t => t.status === 'Done').length / s.tasks.length * 100) : 0
+    return pct < 70
+  })
   const highOpen = allTasks.filter(t => t.priority === 'High' && t.status !== 'Done')
   if (overdueIncomplete.length > 0 || highOpen.length > 3) return 'At Risk'
   return 'On Track'
@@ -279,6 +277,7 @@ export default function Dashboard() {
           {projects.map(project => {
             const allTasks = project.sprints.flatMap(s => s.tasks)
             const doneTasks = allTasks.filter(t => t.status === 'Done')
+            const overallPct = allTasks.length ? Math.round(doneTasks.length / allTasks.length * 100) : 0
             const sprint = activeSprint(project)
             const health = projectHealth(project)
             const healthCls = health === 'At Risk'
@@ -296,15 +295,15 @@ export default function Dashboard() {
                     {health}
                   </span>
                 </div>
-                {sprint ? (
+                {allTasks.length > 0 ? (
                   <>
-                    <p className="text-xs text-gray-500 truncate mb-1.5">{sprint.name}</p>
+                    <p className="text-xs text-gray-500 truncate mb-1.5">{sprint?.name ?? ''}</p>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5">
                         <div className="h-1.5 rounded-full transition-all"
-                          style={{ width: `${sprintPct(sprint)}%`, backgroundColor: project.color }} />
+                          style={{ width: `${overallPct}%`, backgroundColor: project.color }} />
                       </div>
-                      <span className="text-[10px] text-gray-500 w-7 text-right tabular-nums">{sprintPct(sprint)}%</span>
+                      <span className="text-[10px] text-gray-500 w-7 text-right tabular-nums">{overallPct}%</span>
                     </div>
                   </>
                 ) : (

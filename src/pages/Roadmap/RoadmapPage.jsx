@@ -3,7 +3,7 @@ import { useRoadmap } from '../../context/RoadmapContext.jsx'
 import {
   Plus, X, ArrowLeft, Search, GripVertical, Calendar,
   ChevronDown, FolderOpen, Trash2, Sparkles, Send, Bot,
-  MessageSquare, FileText, CheckCircle2,
+  MessageSquare, FileText, CheckCircle2, Pencil,
   AlertTriangle, ChevronRight, ChevronLeft
 } from 'lucide-react'
 import PageHeader from '../../components/ui/PageHeader.jsx'
@@ -150,6 +150,8 @@ function NotesThread({ notes = [], onAdd, onDelete }) {
 // ─── Task Detail Modal ────────────────────────────────────────────────────────
 
 function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
+  const [description, setDescription] = useState(task.description || '')
+
   function handleAddNote(text) {
     onUpdate({ ...task, notes: [...(task.notes || []), makeNote(text)] })
   }
@@ -158,6 +160,9 @@ function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
   }
   function handleStatusChange(newStatus) {
     onUpdate({ ...task, status: newStatus })
+  }
+  function handleDescriptionBlur() {
+    if (description !== (task.description || '')) onUpdate({ ...task, description })
   }
 
   return (
@@ -187,6 +192,18 @@ function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
             >
               {KANBAN_COLUMNS.map(c => <option key={c}>{c}</option>)}
             </select>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Description</p>
+            <textarea
+              className="input w-full text-sm resize-none"
+              rows={3}
+              placeholder="Add a description…"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              onBlur={handleDescriptionBlur}
+            />
           </div>
 
           <div>
@@ -366,10 +383,13 @@ function SprintDetail({ sprint, onClose, onUpdateSprint }) {
                           onClick={() => setDetailTask(task)}
                           className="bg-white border border-gray-200 rounded-lg p-2.5 cursor-pointer group hover:border-blue-300 hover:shadow-sm transition-all"
                         >
-                          <div className="flex items-start justify-between gap-1.5 mb-2">
-                            <span className="text-xs text-gray-800 leading-snug">{task.title}</span>
+                          <div className="flex items-start justify-between gap-1.5 mb-1.5">
+                            <span className="text-xs text-gray-800 leading-snug font-medium">{task.title}</span>
                             <GripVertical size={11} className="text-gray-300 flex-shrink-0 group-hover:text-gray-400 mt-0.5" />
                           </div>
+                          {task.description && (
+                            <p className="text-[10px] text-gray-400 leading-snug mb-2 line-clamp-2">{task.description}</p>
+                          )}
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <Avatar initials={task.assignee} />
                             <PriorityBadge priority={task.priority} />
@@ -512,11 +532,11 @@ function TimelineView({ sprints, projectColor, onSprintClick, onAddSprint }) {
   const tickCur = new Date(minDate.getFullYear(), minDate.getMonth(), 1)
   while (tickCur <= maxDate) { ticks.push(new Date(tickCur)); tickCur.setMonth(tickCur.getMonth() + 1) }
 
-  const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0)
-  const dow = todayMidnight.getDay()
-  const firstMondayMs = todayMidnight.getTime() + (dow === 1 ? 0 : (8 - dow) % 7) * DAY_MS
   const mondays = []
-  for (let ms = firstMondayMs; ms <= todayMidnight.getTime() + 60 * DAY_MS; ms += 7 * DAY_MS) {
+  const minMonday = new Date(minDate); minMonday.setHours(0, 0, 0, 0)
+  const minDow = minMonday.getDay()
+  const firstMondayMs = minMonday.getTime() + (minDow === 1 ? 0 : (8 - minDow) % 7) * DAY_MS
+  for (let ms = firstMondayMs; ms <= maxDate.getTime(); ms += 7 * DAY_MS) {
     mondays.push(new Date(ms))
   }
 
@@ -633,7 +653,7 @@ function TimelineView({ sprints, projectColor, onSprintClick, onAddSprint }) {
                     {sprint.name}
                   </div>
                   <div className="text-[9px] text-gray-400 mb-1">
-                    {formatDateShort(sprint.startDate)} – {formatDateShort(sprint.endDate)} · {sprint.tasks.length}t
+                    {formatDateShort(sprint.startDate)} – {formatDateShort(sprint.endDate)} · {sprint.tasks.length} task{sprint.tasks.length !== 1 ? 's' : ''}
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-1">
                     <div className="rounded-full h-1 transition-all" style={{ width: `${pct}%`, backgroundColor: projectColor }} />
@@ -1235,7 +1255,7 @@ function ProjectStatusSummary({ project }) {
 
 // ─── Backlog ──────────────────────────────────────────────────────────────────
 
-const BLANK_TASK = { title: '', assignee: 'JC', priority: 'Med', tag: '', status: 'Backlog' }
+const BLANK_TASK = { title: '', assignee: 'JC', priority: 'Med', tag: '', status: 'Backlog', dueDate: '', description: '' }
 const BLANK_ADD_TASK = { ...BLANK_TASK, sprintId: '' }
 
 function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDelete }) {
@@ -1245,9 +1265,12 @@ function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDe
     return (
       <tr className="bg-blue-50">
         <td className="table-cell">
-          <input autoFocus className="input text-sm py-1" value={et.title}
+          <input autoFocus className="input text-sm py-1 mb-1" value={et.title}
             onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, title: e.target.value } }))}
-            onKeyDown={e => { if (e.key === 'Enter') onSaveEdit(); if (e.key === 'Escape') setEditingTask(null) }} />
+            onKeyDown={e => { if (e.key === 'Escape') setEditingTask(null) }} />
+          <textarea className="input text-xs py-1 resize-none w-full" rows={2} placeholder="Description…"
+            value={et.description || ''}
+            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, description: e.target.value } }))} />
         </td>
         <td className="table-cell">
           <select className="input text-xs py-1 w-auto" value={et.status}
@@ -1272,6 +1295,11 @@ function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDe
             onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, tag: e.target.value } }))} />
         </td>
         <td className="table-cell">
+          <input type="date" className="input text-xs py-1 w-auto"
+            value={et.dueDate || ''}
+            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, dueDate: e.target.value } }))} />
+        </td>
+        <td className="table-cell">
           <div className="flex items-center gap-1.5">
             <button onClick={onSaveEdit} className="text-xs text-blue-600 font-medium hover:text-blue-800">Save</button>
             <button onClick={() => setEditingTask(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
@@ -1280,9 +1308,13 @@ function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDe
       </tr>
     )
   }
+  const isOverdue = task.dueDate && task.status !== 'Done' && new Date(task.dueDate + 'T00:00:00') < new Date()
   return (
     <tr className="hover:bg-gray-50 transition-colors group">
-      <td className="table-cell font-medium text-gray-900 text-sm">{task.title}</td>
+      <td className="table-cell">
+        <span className="font-medium text-gray-900 text-sm block">{task.title}</span>
+        {task.description && <span className="text-xs text-gray-400 line-clamp-1">{task.description}</span>}
+      </td>
       <td className="table-cell">
         <span className="flex items-center gap-1.5 text-sm text-gray-600">
           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[task.status] || 'bg-gray-400'}`} />
@@ -1293,19 +1325,27 @@ function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDe
       <td className="table-cell"><PriorityBadge priority={task.priority} /></td>
       <td className="table-cell"><span className="status-badge bg-gray-100 text-gray-600 text-[10px]">{task.tag}</span></td>
       <td className="table-cell">
+        {task.dueDate
+          ? <span className={`text-xs font-medium ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
+              {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </span>
+          : <span className="text-xs text-gray-300">—</span>
+        }
+      </td>
+      <td className="table-cell">
         <div className="flex items-center gap-2">
           {task.notes?.length > 0 && (
             <span className="flex items-center gap-1 text-xs text-gray-400">
               <MessageSquare size={11} />{task.notes.length}
             </span>
           )}
-          <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="ml-auto flex items-center gap-1.5">
             <button onClick={() => setEditingTask({ task, sprintId })}
-              className="text-gray-400 hover:text-blue-600 transition-colors" title="Edit">
-              <FileText size={13} />
+              className="text-gray-300 hover:text-blue-600 transition-colors" title="Edit">
+              <Pencil size={13} />
             </button>
             <button onClick={() => onDelete(sprintId, task.id)}
-              className="text-gray-400 hover:text-red-500 transition-colors" title="Delete">
+              className="text-gray-300 hover:text-red-500 transition-colors" title="Delete">
               <Trash2 size={13} />
             </button>
           </div>
@@ -1385,7 +1425,7 @@ function BacklogView({ project, onUpdateProject }) {
     if (!addTaskForm.title.trim() || !addTaskForm.sprintId) return
     const sprint = sprints.find(s => s.id === addTaskForm.sprintId)
     if (!sprint) return
-    const task = { id: newId(), title: addTaskForm.title.trim(), assignee: addTaskForm.assignee, priority: addTaskForm.priority, tag: addTaskForm.tag, status: addTaskForm.status, notes: [] }
+    const task = { id: newId(), title: addTaskForm.title.trim(), assignee: addTaskForm.assignee, priority: addTaskForm.priority, tag: addTaskForm.tag, status: addTaskForm.status, dueDate: addTaskForm.dueDate || '', notes: [] }
     updateSprint({ ...sprint, tasks: [...sprint.tasks, task] })
     setAddTaskForm({ ...BLANK_ADD_TASK, sprintId: addTaskForm.sprintId })
     setShowAddTask(false)
@@ -1454,6 +1494,7 @@ function BacklogView({ project, onUpdateProject }) {
                   <th className="table-header">Assignee</th>
                   <th className="table-header">Priority</th>
                   <th className="table-header">Tag</th>
+                  <th className="table-header">Due Date</th>
                   <th className="table-header" style={{ width: 80 }}></th>
                 </tr></thead>
                 <tbody>
@@ -1493,6 +1534,10 @@ function BacklogView({ project, onUpdateProject }) {
                           onChange={e => setNewTask(p => ({ ...p, tag: e.target.value }))} />
                       </td>
                       <td className="table-cell">
+                        <input type="date" className="input text-xs py-1 w-auto" value={newTask.dueDate || ''}
+                          onChange={e => setNewTask(p => ({ ...p, dueDate: e.target.value }))} />
+                      </td>
+                      <td className="table-cell">
                         <div className="flex items-center gap-1.5">
                           <button onClick={() => handleAddTask(sprint.id)} className="text-xs text-blue-600 font-medium hover:text-blue-800">Add</button>
                           <button onClick={() => setAddingTo(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
@@ -1524,6 +1569,12 @@ function BacklogView({ project, onUpdateProject }) {
               {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
+          <div>
+            <label className="label">Description</label>
+            <textarea className="input w-full text-sm resize-none" rows={2} placeholder="Optional description…"
+              value={addTaskForm.description || ''}
+              onChange={e => setAddTaskForm(p => ({ ...p, description: e.target.value }))} />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="label">Status</label>
@@ -1547,11 +1598,19 @@ function BacklogView({ project, onUpdateProject }) {
               </select>
             </div>
           </div>
-          <div>
-            <label className="label">Tag</label>
-            <input className="input w-full text-sm" placeholder="Optional tag…"
-              value={addTaskForm.tag}
-              onChange={e => setAddTaskForm(p => ({ ...p, tag: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Tag</label>
+              <input className="input w-full text-sm" placeholder="Optional tag…"
+                value={addTaskForm.tag}
+                onChange={e => setAddTaskForm(p => ({ ...p, tag: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Due Date</label>
+              <input type="date" className="input w-full text-sm"
+                value={addTaskForm.dueDate || ''}
+                onChange={e => setAddTaskForm(p => ({ ...p, dueDate: e.target.value }))} />
+            </div>
           </div>
         </div>
         <div className="flex gap-2 mt-4">
@@ -1800,9 +1859,9 @@ export default function RoadmapPage() {
               {projects.map(p => {
                 const allTasks = p.sprints.flatMap(s => s.tasks)
                 const doneTasks = allTasks.filter(t => t.status === 'Done')
+                const overallPct = completionPct(allTasks)
                 const today = new Date()
                 const activeSp = p.sprints.find(s => parseDate(s.startDate) <= today && parseDate(s.endDate) >= today) || p.sprints.at(-1)
-                const pct = activeSp ? completionPct(activeSp.tasks) : 0
                 return (
                   <button
                     key={p.id}
@@ -1822,14 +1881,14 @@ export default function RoadmapPage() {
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    {activeSp ? (
+                    {allTasks.length > 0 ? (
                       <>
-                        <p className="text-xs text-gray-500 truncate mb-2">{activeSp.name}</p>
+                        <p className="text-xs text-gray-500 truncate mb-2">{activeSp?.name ?? ''}</p>
                         <div className="flex items-center gap-2 mb-3">
                           <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                            <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: p.color }} />
+                            <div className="h-1.5 rounded-full transition-all" style={{ width: `${overallPct}%`, backgroundColor: p.color }} />
                           </div>
-                          <span className="text-[10px] text-gray-500 tabular-nums">{pct}%</span>
+                          <span className="text-[10px] text-gray-500 tabular-nums">{overallPct}%</span>
                         </div>
                       </>
                     ) : (
