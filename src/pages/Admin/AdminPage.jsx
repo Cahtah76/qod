@@ -3,10 +3,11 @@ import { Link, useLocation } from 'react-router-dom'
 import { format } from 'date-fns'
 import {
   Settings, Users, ClipboardList, Megaphone, BarChart2, Shield,
-  Plus, Edit, Trash2, GripVertical, ChevronDown, ChevronUp, ArrowRight, Clock, Calendar
+  Plus, Edit, Trash2, GripVertical, ChevronDown, ChevronUp, ArrowRight, Clock, Calendar, KeyRound
 } from 'lucide-react'
 import { useApp, getEventStatus } from '../../context/AppContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
+import { api } from '../../utils/api.js'
 import PageHeader from '../../components/ui/PageHeader.jsx'
 import Modal from '../../components/ui/Modal.jsx'
 import GoogleCalendarSettings from './GoogleCalendarSettings.jsx'
@@ -440,7 +441,40 @@ function AnnouncementForm({ state, dispatch, onClose }) {
   )
 }
 
-function AdminEmployees({ state, dispatch }) {
+function AdminEmployees({ state }) {
+  const [resetTarget, setResetTarget] = useState(null) // employee object
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  function openReset(emp) {
+    setResetTarget(emp)
+    setNewPassword('')
+    setConfirmPassword('')
+    setError('')
+    setSuccess('')
+  }
+
+  async function handleReset(e) {
+    e.preventDefault()
+    setError('')
+    if (newPassword.length < 8) return setError('Password must be at least 8 characters.')
+    if (newPassword !== confirmPassword) return setError('Passwords do not match.')
+    setSaving(true)
+    try {
+      await api.post('/api/admin/reset-password', { employeeId: resetTarget.id, newPassword })
+      setSuccess(`Password reset for ${resetTarget.name}. They will be prompted to change it on next login.`)
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      setError(err.message || 'Failed to reset password.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -455,6 +489,7 @@ function AdminEmployees({ state, dispatch }) {
               <th className="table-header">Role</th>
               <th className="table-header">Email</th>
               <th className="table-header">Events</th>
+              <th className="table-header"></th>
             </tr>
           </thead>
           <tbody>
@@ -463,7 +498,7 @@ function AdminEmployees({ state, dispatch }) {
                 e.crew?.remoteOperator === emp.id || e.crew?.onsiteOperators?.includes(emp.id)
               ).length
               return (
-                <tr key={emp.id} className="hover:bg-gray-50">
+                <tr key={emp.id} className="hover:bg-gray-50 group">
                   <td className="table-cell">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">
@@ -479,12 +514,67 @@ function AdminEmployees({ state, dispatch }) {
                   </td>
                   <td className="table-cell text-xs text-gray-600">{emp.email}</td>
                   <td className="table-cell text-sm text-gray-600">{eventCount}</td>
+                  <td className="table-cell">
+                    <button
+                      onClick={() => openReset(emp)}
+                      className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-all"
+                      title="Reset password"
+                    >
+                      <KeyRound size={13} /> Reset password
+                    </button>
+                  </td>
                 </tr>
               )
             })}
           </tbody>
         </table>
       </div>
+
+      <Modal open={!!resetTarget} onClose={() => { setResetTarget(null); setSuccess('') }} title="Reset Password" size="sm">
+        {success ? (
+          <div className="space-y-4">
+            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">{success}</p>
+            <div className="flex justify-end">
+              <button className="btn-secondary" onClick={() => { setResetTarget(null); setSuccess('') }}>Close</button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleReset} className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Set a new temporary password for <span className="font-semibold text-gray-900">{resetTarget?.name}</span>.
+              They will be required to change it on their next login.
+            </p>
+            <div>
+              <label className="label">New Password</label>
+              <input
+                autoFocus
+                type="password"
+                className="input w-full"
+                placeholder="Min. 8 characters"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Confirm Password</label>
+              <input
+                type="password"
+                className="input w-full"
+                placeholder="Repeat password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+              />
+            </div>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <div className="flex gap-2 pt-1">
+              <button type="button" className="btn-secondary flex-1 justify-center" onClick={() => setResetTarget(null)}>Cancel</button>
+              <button type="submit" className="btn-primary flex-1 justify-center" disabled={saving}>
+                {saving ? 'Saving…' : 'Reset Password'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   )
 }

@@ -468,6 +468,18 @@ app.post('/api/auth/change-password', loginLimiter, (req, res) => {
   res.sendStatus(204)
 })
 
+// Admin-only: reset another user's password — forces them to change on next login
+app.post('/api/admin/reset-password', (req, res) => {
+  if (req.user?.role !== 'Admin') return res.status(403).json({ error: 'Admin only.' })
+  const { employeeId, newPassword } = req.body
+  if (!employeeId || !newPassword) return res.status(400).json({ error: 'employeeId and newPassword are required.' })
+  if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' })
+  const emp = q.get('employees', employeeId)
+  if (!emp) return res.status(404).json({ error: 'Employee not found.' })
+  q.upsert('employees', { ...emp, password: bcrypt.hashSync(newPassword, 10), mustChangePassword: true })
+  res.sendStatus(204)
+})
+
 // ── Serve built React app ─────────────────────────────────────────────────────
 app.use(express.static(DIST, {
   maxAge: isProd ? '1y' : 0,  // Vite output is content-hashed — safe to cache aggressively
