@@ -17,12 +17,17 @@ import {
   syncEvent, deleteEventFromCalendar,
 } from './googleCalendar.js'
 
-const JWT_SECRET = process.env.JWT_SECRET || (() => {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET must be set in production')
+// Fail fast in production if required env vars are missing
+if (process.env.NODE_ENV === 'production') {
+  const required = ['JWT_SECRET', 'ALLOWED_ORIGIN']
+  const missing = required.filter(k => !process.env[k])
+  if (missing.length) {
+    console.error(`FATAL: Missing required env vars: ${missing.join(', ')}`)
+    process.exit(1)
   }
-  return 'dev-secret-change-in-production'
-})()
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(__dirname, '..', 'dist')
@@ -62,7 +67,14 @@ seedIfEmpty()
 migratePasswords()
 
 // ── Health check — ALB pings this to verify the instance is alive ─────────────
-app.get('/health', (_req, res) => res.json({ status: 'ok' }))
+app.get('/health', (_req, res) => {
+  try {
+    q.count('events') // Verify DB is reachable
+    res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  } catch (err) {
+    res.status(503).json({ status: 'unhealthy', error: err.message })
+  }
+})
 
 // ── JWT auth middleware — applied to all /api/* routes except auth + callback ──
 function requireAuth(req, res, next) {
@@ -83,13 +95,22 @@ app.use('/api', (req, res, next) => {
   requireAuth(req, res, next)
 })
 
-// ── Rate limiter for auth routes ──────────────────────────────────────────────
+// ── Rate limiters ─────────────────────────────────────────────────────────────
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+})
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'Too many AI requests. Please wait a moment.' },
 })
 
 // ── Full state ────────────────────────────────────────────────────────────────
@@ -110,7 +131,7 @@ app.get('/api/state', (_req, res) => {
 })
 
 // ── AI schedule parsing (keeps Anthropic API key server-side) ────────────────
-app.post('/api/ai/parse-schedule', async (req, res) => {
+app.post('/api/ai/parse-schedule', aiLimiter, async (req, res) => {
   const { text } = req.body
   if (!text) return res.status(400).json({ error: 'text is required' })
 
@@ -145,7 +166,7 @@ Use standard team abbreviations (ATL, BOS, LAL, GSW, etc.). Infer the season fro
 })
 
 // ── AI standup notes parser ───────────────────────────────────────────────────
-app.post('/api/ai/parse-standup', async (req, res) => {
+app.post('/api/ai/parse-standup', aiLimiter, async (req, res) => {
   const { notes, project } = req.body
   if (!notes || !project) return res.status(400).json({ error: 'notes and project are required' })
 
@@ -189,7 +210,7 @@ Rules:
 })
 
 // ── AI project status summary ─────────────────────────────────────────────────
-app.post('/api/ai/project-summary', async (req, res) => {
+app.post('/api/ai/project-summary', aiLimiter, async (req, res) => {
   const { project } = req.body
   if (!project) return res.status(400).json({ error: 'project is required' })
 
@@ -458,12 +479,27 @@ app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(DIST, 'index.html'))
 })
 
+// ── Global error handler (must be last middleware) ────────────────────────────
+app.use((err, req, res, _next) => {
+  console.error('Unhandled request error:', err.message, err.stack)
+  res.status(500).json({ error: 'Internal server error' })
+})
+
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 process.on('SIGTERM', () => {
   console.log('SIGTERM received — shutting down gracefully')
   process.exit(0)
 })
 
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason)
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err)
+  process.exit(1)
+})
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001
-app.listen(PORT, () => console.log(`QOD API server listening on http://localhost:${PORT}`))
+app.listen(PORT, () => console.log(`QOD server started on port ${PORT} [${process.env.NODE_ENV || 'development'}]`))

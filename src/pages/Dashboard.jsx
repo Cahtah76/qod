@@ -267,7 +267,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
             <GitBranch size={14} className="text-blue-500" />
-            Roadmap
+            Project Status
           </h2>
           <Link to="/roadmap" className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
             Open <ArrowRight size={12} />

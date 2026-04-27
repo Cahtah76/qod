@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useRoadmap } from '../../context/RoadmapContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
 import {
@@ -35,6 +35,63 @@ const STATUS_DOT = {
 }
 function employeeInitials(name) {
   return name.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
+
+// ─── Smart Date Input ─────────────────────────────────────────────────────────
+
+function SmartDateInput({ value, onChange, className, placeholder = 'M/D' }) {
+  function toDisplay(iso) {
+    if (!iso) return ''
+    const [y, m, d] = iso.split('-').map(Number)
+    if (!y || !m || !d) return ''
+    return `${m}/${d}/${y}`
+  }
+
+  function toISO(str) {
+    if (!str.trim()) return ''
+    const parts = str.trim().split('/')
+    if (parts.length < 2) return null
+    const m = parseInt(parts[0])
+    const d = parseInt(parts[1])
+    let y = parts[2] ? parseInt(parts[2]) : new Date().getFullYear()
+    if (y < 100) y += 2000
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    }
+    return null
+  }
+
+  const [text, setText] = useState(toDisplay(value))
+  const pickerRef = useRef(null)
+  useEffect(() => { setText(toDisplay(value)) }, [value])
+
+  function handleBlur() {
+    if (!text.trim()) { onChange(''); return }
+    const iso = toISO(text)
+    if (iso) { onChange(iso); setText(toDisplay(iso)) }
+    else setText(toDisplay(value))
+  }
+
+  return (
+    <div className="relative flex items-center">
+      <input
+        className={className}
+        value={text}
+        placeholder={placeholder}
+        onChange={e => setText(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+      />
+      <input ref={pickerRef} type="date" className="sr-only" value={value || ''}
+        onChange={e => { onChange(e.target.value); setText(toDisplay(e.target.value)) }} />
+      <button type="button"
+        onMouseDown={e => e.preventDefault()}
+        onClick={() => pickerRef.current?.showPicker?.()}
+        className="absolute right-1.5 text-gray-400 hover:text-gray-600 transition-colors">
+        <Calendar size={11} />
+      </button>
+    </div>
+  )
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -221,8 +278,8 @@ function TaskDetailModal({ task, sprintName, onClose, onUpdate }) {
             </div>
             <div>
               <label className="label">Due Date</label>
-              <input type="date" className="input text-sm" value={dueDate}
-                onChange={e => { setDueDate(e.target.value); commit({ dueDate: e.target.value }) }} />
+              <SmartDateInput className="input text-sm pr-7" value={dueDate}
+                onChange={v => { setDueDate(v); commit({ dueDate: v }) }} />
             </div>
           </div>
 
@@ -265,7 +322,7 @@ function SprintDetail({ sprint, onClose, onUpdateSprint }) {
   const [tab, setTab] = useState('board')
   const [detailTask, setDetailTask] = useState(null)
   const [showAddTask, setShowAddTask] = useState(false)
-  const [newTask, setNewTask] = useState({ title: '', assignee: 'JC', priority: 'Med', tag: '', status: 'Backlog' })
+  const [newTask, setNewTask] = useState({ title: '', assignee: 'TBD', priority: 'Med', tag: '', status: 'Backlog', dueDate: '', description: '' })
   const [editingName, setEditingName] = useState(false)
   const [nameValue, setNameValue] = useState(sprint.name)
   const [editingDates, setEditingDates] = useState(false)
@@ -294,7 +351,7 @@ function SprintDetail({ sprint, onClose, onUpdateSprint }) {
   function handleAddTask() {
     if (!newTask.title.trim()) return
     onUpdateSprint({ ...sprint, tasks: [...sprint.tasks, { ...newTask, id: newId(), title: newTask.title.trim(), notes: [] }] })
-    setNewTask({ title: '', assignee: 'JC', priority: 'Med', tag: '', status: 'Backlog' })
+    setNewTask({ title: '', assignee: 'TBD', priority: 'Med', tag: '', status: 'Backlog', dueDate: '', description: '' })
     setShowAddTask(false)
   }
 
@@ -507,6 +564,10 @@ function SprintDetail({ sprint, onClose, onUpdateSprint }) {
                   <input autoFocus className="input text-sm" placeholder="Task title" value={newTask.title}
                     onChange={e => setNewTask(p => ({ ...p, title: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && handleAddTask()} /></div>
+                <div><label className="label">Description</label>
+                  <textarea className="input text-sm resize-none w-full" rows={2} placeholder="Optional description…"
+                    value={newTask.description}
+                    onChange={e => setNewTask(p => ({ ...p, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-2">
                   <div><label className="label">Assignee</label>
                     <select className="input text-sm" value={newTask.assignee} onChange={e => setNewTask(p => ({ ...p, assignee: e.target.value }))}>
@@ -515,12 +576,17 @@ function SprintDetail({ sprint, onClose, onUpdateSprint }) {
                     <select className="input text-sm" value={newTask.priority} onChange={e => setNewTask(p => ({ ...p, priority: e.target.value }))}>
                       {['High', 'Med', 'Low'].map(p => <option key={p}>{p}</option>)}</select></div>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="label">Status</label>
+                    <select className="input text-sm" value={newTask.status} onChange={e => setNewTask(p => ({ ...p, status: e.target.value }))}>
+                      {KANBAN_COLUMNS.map(c => <option key={c}>{c}</option>)}</select></div>
+                  <div><label className="label">Due Date</label>
+                    <SmartDateInput className="input text-sm pr-7" value={newTask.dueDate}
+                      onChange={v => setNewTask(p => ({ ...p, dueDate: v }))} /></div>
+                </div>
                 <div><label className="label">Tag</label>
                   <input className="input text-sm" placeholder="e.g. SDK, AR Engine" value={newTask.tag}
                     onChange={e => setNewTask(p => ({ ...p, tag: e.target.value }))} /></div>
-                <div><label className="label">Column</label>
-                  <select className="input text-sm" value={newTask.status} onChange={e => setNewTask(p => ({ ...p, status: e.target.value }))}>
-                    {KANBAN_COLUMNS.map(c => <option key={c}>{c}</option>)}</select></div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button className="btn-secondary flex-1 justify-center text-sm" onClick={() => setShowAddTask(false)}>Cancel</button>
@@ -1297,84 +1363,86 @@ function ProjectStatusSummary({ project }) {
 
 // ─── Backlog ──────────────────────────────────────────────────────────────────
 
-const BLANK_TASK = { title: '', assignee: 'JC', priority: 'Med', tag: '', status: 'Backlog', dueDate: '', description: '' }
+const BLANK_TASK = { title: '', assignee: 'TBD', priority: 'Med', tag: '', status: 'Backlog', dueDate: '', description: '' }
 const BLANK_ADD_TASK = { ...BLANK_TASK, sprintId: '' }
 
-function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDelete }) {
+function EditableText({ value, onSave, className, placeholder = '', multiline = false }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(value || '')
+  useEffect(() => { setText(value || '') }, [value])
+
+  function handleBlur() {
+    setEditing(false)
+    const trimmed = text.trim()
+    if (trimmed !== (value || '').trim()) onSave(trimmed)
+  }
+
+  if (editing) {
+    const shared = {
+      autoFocus: true,
+      className: `${className} border border-blue-400 rounded px-1 outline-none bg-white`,
+      value: text,
+      onChange: e => setText(e.target.value),
+      onBlur: handleBlur,
+      onKeyDown: e => {
+        if (e.key === 'Escape') { setText(value || ''); setEditing(false) }
+        if (!multiline && e.key === 'Enter') e.target.blur()
+      },
+    }
+    return multiline
+      ? <textarea {...shared} rows={2} style={{ resize: 'none', width: '100%' }} />
+      : <input {...shared} style={{ width: '100%' }} />
+  }
+
+  return (
+    <div
+      className={`${className} cursor-text rounded px-1 hover:bg-gray-100 transition-colors ${!value ? 'text-gray-300' : ''}`}
+      onClick={() => setEditing(true)}
+    >
+      {value || placeholder}
+    </div>
+  )
+}
+
+const CELL_SELECT = 'text-xs text-gray-700 bg-transparent border border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none rounded px-1 py-0.5 cursor-pointer w-full'
+
+function TaskRow({ task, sprintId, onSave, onDelete }) {
   const { state } = useApp()
   const assigneeOpts = [...state.employees.map(e => ({ label: e.name, value: employeeInitials(e.name) })), { label: 'TBD', value: 'TBD' }]
-  const isEditing = editingTask?.task.id === task.id
-  if (isEditing) {
-    const et = editingTask.task
-    return (
-      <tr className="bg-blue-50">
-        <td className="table-cell">
-          <input autoFocus className="input text-sm py-1 mb-1" value={et.title}
-            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, title: e.target.value } }))}
-            onKeyDown={e => { if (e.key === 'Escape') setEditingTask(null) }} />
-          <textarea className="input text-xs py-1 resize-none w-full" rows={2} placeholder="Description…"
-            value={et.description || ''}
-            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, description: e.target.value } }))} />
-        </td>
-        <td className="table-cell">
-          <select className="input text-xs py-1 w-auto" value={et.status}
-            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, status: e.target.value } }))}>
-            {KANBAN_COLUMNS.map(c => <option key={c}>{c}</option>)}
-          </select>
-        </td>
-        <td className="table-cell">
-          <select className="input text-xs py-1 w-auto" value={et.assignee}
-            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, assignee: e.target.value } }))}>
-            {assigneeOpts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
-          </select>
-        </td>
-        <td className="table-cell">
-          <select className="input text-xs py-1 w-auto" value={et.priority}
-            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, priority: e.target.value } }))}>
-            {['High', 'Med', 'Low'].map(p => <option key={p}>{p}</option>)}
-          </select>
-        </td>
-        <td className="table-cell">
-          <input className="input text-xs py-1" value={et.tag} placeholder="Tag"
-            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, tag: e.target.value } }))} />
-        </td>
-        <td className="table-cell">
-          <input type="date" className="input text-xs py-1 w-auto"
-            value={et.dueDate || ''}
-            onChange={e => setEditingTask(p => ({ ...p, task: { ...p.task, dueDate: e.target.value } }))} />
-        </td>
-        <td className="table-cell">
-          <div className="flex items-center gap-1.5">
-            <button onClick={onSaveEdit} className="text-xs text-blue-600 font-medium hover:text-blue-800">Save</button>
-            <button onClick={() => setEditingTask(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-          </div>
-        </td>
-      </tr>
-    )
-  }
   const isOverdue = task.dueDate && task.status !== 'Done' && new Date(task.dueDate + 'T00:00:00') < new Date()
+
+  function save(patch) { onSave(sprintId, { ...task, ...patch }) }
+
   return (
-    <tr className="hover:bg-gray-50 transition-colors group">
+    <tr className="hover:bg-gray-50/60 transition-colors group">
       <td className="table-cell">
-        <span className="font-medium text-gray-900 text-sm block">{task.title}</span>
-        {task.description && <span className="text-xs text-gray-400 line-clamp-1">{task.description}</span>}
+        <EditableText value={task.title} onSave={v => save({ title: v })}
+          className="font-medium text-gray-900 text-sm block" placeholder="Untitled" />
+        <EditableText value={task.description || ''} onSave={v => save({ description: v })}
+          className="text-xs text-gray-400 mt-0.5 block" placeholder="Add description…" multiline />
       </td>
       <td className="table-cell">
-        <span className="flex items-center gap-1.5 text-sm text-gray-600">
-          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[task.status] || 'bg-gray-400'}`} />
-          {task.status}
-        </span>
+        <select className={CELL_SELECT} value={task.status} onChange={e => save({ status: e.target.value })}>
+          {KANBAN_COLUMNS.map(c => <option key={c}>{c}</option>)}
+        </select>
       </td>
-      <td className="table-cell"><Avatar initials={task.assignee} /></td>
-      <td className="table-cell"><PriorityBadge priority={task.priority} /></td>
-      <td className="table-cell"><span className="status-badge bg-gray-100 text-gray-600 text-[10px]">{task.tag}</span></td>
       <td className="table-cell">
-        {task.dueDate
-          ? <span className={`text-xs font-medium ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
-              {new Date(task.dueDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </span>
-          : <span className="text-xs text-gray-300">—</span>
-        }
+        <select className={CELL_SELECT} value={task.assignee} onChange={e => save({ assignee: e.target.value })}>
+          {assigneeOpts.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+        </select>
+      </td>
+      <td className="table-cell">
+        <select className={CELL_SELECT} value={task.priority} onChange={e => save({ priority: e.target.value })}>
+          {['High', 'Med', 'Low'].map(p => <option key={p}>{p}</option>)}
+        </select>
+      </td>
+      <td className="table-cell">
+        <EditableText value={task.tag} onSave={v => save({ tag: v })}
+          className="text-xs text-gray-600 block" placeholder="—" />
+      </td>
+      <td className="table-cell">
+        <SmartDateInput className={`text-xs py-0.5 pr-6 w-28 rounded px-1 border border-transparent hover:border-gray-200 focus:border-blue-400 focus:outline-none ${isOverdue ? 'text-red-600' : 'text-gray-600'}`}
+          value={task.dueDate || ''} onChange={v => save({ dueDate: v })} />
       </td>
       <td className="table-cell">
         <div className="flex items-center gap-2">
@@ -1383,16 +1451,10 @@ function TaskRow({ task, sprintId, editingTask, setEditingTask, onSaveEdit, onDe
               <MessageSquare size={11} />{task.notes.length}
             </span>
           )}
-          <div className="ml-auto flex items-center gap-1.5">
-            <button onClick={() => setEditingTask({ task, sprintId })}
-              className="text-gray-300 hover:text-blue-600 transition-colors" title="Edit">
-              <Pencil size={13} />
-            </button>
-            <button onClick={() => onDelete(sprintId, task.id)}
-              className="text-gray-300 hover:text-red-500 transition-colors" title="Delete">
-              <Trash2 size={13} />
-            </button>
-          </div>
+          <button onClick={() => onDelete(sprintId, task.id)}
+            className="ml-auto text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100" title="Delete">
+            <Trash2 size={13} />
+          </button>
         </div>
       </td>
     </tr>
@@ -1403,19 +1465,23 @@ function BacklogView({ project, onUpdateProject }) {
   const { state } = useApp()
   const assigneeOpts = [...state.employees.map(e => ({ label: e.name, value: employeeInitials(e.name) })), { label: 'TBD', value: 'TBD' }]
   const { sprints } = project
+  const UNASSIGNED_ID = '__backlog__'
+  const unassignedSection = { id: UNASSIGNED_ID, name: 'Unassigned', tasks: project.backlog || [] }
+  const allSections = [unassignedSection, ...sprints]
+
   const [search, setSearch] = useState('')
   const [filterPriority, setFilterPriority] = useState('All')
   const [filterStatus, setFilterStatus] = useState('All')
   const [filterAssignee, setFilterAssignee] = useState('All')
+  const [collapsed, setCollapsed] = useState({})
   const [addingTo, setAddingTo] = useState(null)
   const [newTask, setNewTask] = useState(BLANK_TASK)
-  const [editingTask, setEditingTask] = useState(null)
   const [showBulkImport, setShowBulkImport] = useState(false)
   const [bulkText, setBulkText] = useState('')
-  const [bulkTargetSprint, setBulkTargetSprint] = useState(sprints[0]?.id || '')
+  const [bulkTargetSprint, setBulkTargetSprint] = useState(UNASSIGNED_ID)
   const [bulkParsed, setBulkParsed] = useState(null)
   const [showAddTask, setShowAddTask] = useState(false)
-  const [addTaskForm, setAddTaskForm] = useState({ ...BLANK_ADD_TASK, sprintId: sprints[0]?.id || '' })
+  const [addTaskForm, setAddTaskForm] = useState({ ...BLANK_ADD_TASK, sprintId: UNASSIGNED_ID })
 
   function match(t) {
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false
@@ -1425,27 +1491,30 @@ function BacklogView({ project, onUpdateProject }) {
     return true
   }
 
-  function updateSprint(sprint) {
-    onUpdateProject({ ...project, sprints: project.sprints.map(s => s.id === sprint.id ? sprint : s) })
+  function updateSection(section) {
+    if (section.id === UNASSIGNED_ID) {
+      onUpdateProject({ ...project, backlog: section.tasks })
+    } else {
+      onUpdateProject({ ...project, sprints: project.sprints.map(s => s.id === section.id ? section : s) })
+    }
   }
 
-  function handleAddTask(sprintId) {
+  function handleAddTask(sectionId) {
     if (!newTask.title.trim()) return
-    const sprint = sprints.find(s => s.id === sprintId)
-    updateSprint({ ...sprint, tasks: [...sprint.tasks, { ...newTask, id: newId(), title: newTask.title.trim(), notes: [] }] })
+    const section = allSections.find(s => s.id === sectionId)
+    updateSection({ ...section, tasks: [...section.tasks, { ...newTask, id: newId(), title: newTask.title.trim(), notes: [] }] })
     setNewTask(BLANK_TASK)
     setAddingTo(null)
   }
 
-  function handleDeleteTask(sprintId, taskId) {
-    const sprint = sprints.find(s => s.id === sprintId)
-    updateSprint({ ...sprint, tasks: sprint.tasks.filter(t => t.id !== taskId) })
+  function handleDeleteTask(sectionId, taskId) {
+    const section = allSections.find(s => s.id === sectionId)
+    updateSection({ ...section, tasks: section.tasks.filter(t => t.id !== taskId) })
   }
 
-  function handleSaveEdit() {
-    const sprint = sprints.find(s => s.id === editingTask.sprintId)
-    updateSprint({ ...sprint, tasks: sprint.tasks.map(t => t.id === editingTask.task.id ? editingTask.task : t) })
-    setEditingTask(null)
+  function handleSaveTask(sectionId, updatedTask) {
+    const section = allSections.find(s => s.id === sectionId)
+    updateSection({ ...section, tasks: section.tasks.map(t => t.id === updatedTask.id ? updatedTask : t) })
   }
 
   function parseBulkText(text) {
@@ -1462,17 +1531,17 @@ function BacklogView({ project, onUpdateProject }) {
 
   function handleBulkImport() {
     if (!bulkParsed?.length || !bulkTargetSprint) return
-    const sprint = sprints.find(s => s.id === bulkTargetSprint)
-    updateSprint({ ...sprint, tasks: [...sprint.tasks, ...bulkParsed] })
+    const section = allSections.find(s => s.id === bulkTargetSprint)
+    updateSection({ ...section, tasks: [...section.tasks, ...bulkParsed] })
     setBulkText(''); setBulkParsed(null); setShowBulkImport(false)
   }
 
   function handleAddSingleTask() {
     if (!addTaskForm.title.trim() || !addTaskForm.sprintId) return
-    const sprint = sprints.find(s => s.id === addTaskForm.sprintId)
-    if (!sprint) return
-    const task = { id: newId(), title: addTaskForm.title.trim(), assignee: addTaskForm.assignee, priority: addTaskForm.priority, tag: addTaskForm.tag, status: addTaskForm.status, dueDate: addTaskForm.dueDate || '', notes: [] }
-    updateSprint({ ...sprint, tasks: [...sprint.tasks, task] })
+    const section = allSections.find(s => s.id === addTaskForm.sprintId)
+    if (!section) return
+    const task = { id: newId(), title: addTaskForm.title.trim(), assignee: addTaskForm.assignee, priority: addTaskForm.priority, tag: addTaskForm.tag, status: addTaskForm.status, dueDate: addTaskForm.dueDate || '', description: addTaskForm.description || '', notes: [] }
+    updateSection({ ...section, tasks: [...section.tasks, task] })
     setAddTaskForm({ ...BLANK_ADD_TASK, sprintId: addTaskForm.sprintId })
     setShowAddTask(false)
   }
@@ -1496,8 +1565,8 @@ function BacklogView({ project, onUpdateProject }) {
           </select>
         ))}
         <div className="flex items-center gap-2 ml-auto">
-          <button onClick={() => { setAddTaskForm({ ...BLANK_ADD_TASK, sprintId: sprints[0]?.id || '' }); setShowAddTask(true) }}
-            className="btn-primary py-1.5 text-xs" disabled={!sprints.length}>
+          <button onClick={() => { setAddTaskForm({ ...BLANK_ADD_TASK, sprintId: UNASSIGNED_ID }); setShowAddTask(true) }}
+            className="btn-primary py-1.5 text-xs">
             <Plus size={13} /> Add Task
           </button>
           <button onClick={() => setShowBulkImport(true)} className="btn-secondary py-1.5 text-xs">
@@ -1506,32 +1575,30 @@ function BacklogView({ project, onUpdateProject }) {
         </div>
       </div>
 
-      {/* Sprint groups */}
-      {sprints.map(sprint => {
+      {/* Sections: Unassigned backlog + sprints */}
+      {allSections.map(sprint => {
         const rows = sprint.tasks.filter(match)
         const isAdding = addingTo === sprint.id
-        if (!rows.length && !isAdding) return (
-          <div key={sprint.id}>
-            <div className="flex items-center gap-2 mb-1.5 px-1">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{sprint.name}</span>
-              <span className="text-xs text-gray-400">(0)</span>
-              <button onClick={() => { setAddingTo(sprint.id); setNewTask(BLANK_TASK) }}
-                className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
-                <Plus size={12} /> Add task
-              </button>
-            </div>
-          </div>
-        )
+        const isUnassigned = sprint.id === UNASSIGNED_ID
+        const isCollapsed = collapsed[sprint.id]
+        const toggleCollapse = () => setCollapsed(p => ({ ...p, [sprint.id]: !p[sprint.id] }))
         return (
           <div key={sprint.id}>
             <div className="flex items-center gap-2 mb-1.5 px-1">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{sprint.name}</span>
-              <span className="text-xs text-gray-400">({rows.length})</span>
-              <button onClick={() => { setAddingTo(isAdding ? null : sprint.id); setNewTask(BLANK_TASK) }}
-                className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
-                <Plus size={12} /> Add task
+              <button onClick={toggleCollapse} className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+                {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
               </button>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{sprint.name}</span>
+              {isUnassigned && <span className="text-[10px] text-gray-400 italic">not assigned to a sprint</span>}
+              <span className="text-xs text-gray-400">({rows.length})</span>
+              {!isCollapsed && (
+                <button onClick={() => { setAddingTo(isAdding ? null : sprint.id); setNewTask(BLANK_TASK) }}
+                  className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+                  <Plus size={12} /> Add task
+                </button>
+              )}
             </div>
+            {isCollapsed ? null :
             <div className="card overflow-hidden">
               <table className="w-full">
                 <thead><tr>
@@ -1546,8 +1613,7 @@ function BacklogView({ project, onUpdateProject }) {
                 <tbody>
                   {rows.map(task => (
                     <TaskRow key={task.id} task={task} sprintId={sprint.id}
-                      editingTask={editingTask} setEditingTask={setEditingTask}
-                      onSaveEdit={handleSaveEdit} onDelete={handleDeleteTask} />
+                      onSave={handleSaveTask} onDelete={handleDeleteTask} />
                   ))}
                   {isAdding && (
                     <tr className="bg-blue-50">
@@ -1580,8 +1646,9 @@ function BacklogView({ project, onUpdateProject }) {
                           onChange={e => setNewTask(p => ({ ...p, tag: e.target.value }))} />
                       </td>
                       <td className="table-cell">
-                        <input type="date" className="input text-xs py-1 w-auto" value={newTask.dueDate || ''}
-                          onChange={e => setNewTask(p => ({ ...p, dueDate: e.target.value }))} />
+                        <SmartDateInput className="input text-xs py-1 pr-6 w-32"
+                          value={newTask.dueDate || ''}
+                          onChange={v => setNewTask(p => ({ ...p, dueDate: v }))} />
                       </td>
                       <td className="table-cell">
                         <div className="flex items-center gap-1.5">
@@ -1593,7 +1660,7 @@ function BacklogView({ project, onUpdateProject }) {
                   )}
                 </tbody>
               </table>
-            </div>
+            </div>}
           </div>
         )
       })}
@@ -1612,6 +1679,7 @@ function BacklogView({ project, onUpdateProject }) {
             <label className="label">Sprint</label>
             <select className="input w-full text-sm" value={addTaskForm.sprintId}
               onChange={e => setAddTaskForm(p => ({ ...p, sprintId: e.target.value }))}>
+              <option value={UNASSIGNED_ID}>Unassigned</option>
               {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
@@ -1653,9 +1721,9 @@ function BacklogView({ project, onUpdateProject }) {
             </div>
             <div>
               <label className="label">Due Date</label>
-              <input type="date" className="input w-full text-sm"
+              <SmartDateInput className="input w-full text-sm pr-7"
                 value={addTaskForm.dueDate || ''}
-                onChange={e => setAddTaskForm(p => ({ ...p, dueDate: e.target.value }))} />
+                onChange={v => setAddTaskForm(p => ({ ...p, dueDate: v }))} />
             </div>
           </div>
         </div>
@@ -1682,6 +1750,7 @@ function BacklogView({ project, onUpdateProject }) {
               <div>
                 <label className="label">Add to sprint</label>
                 <select className="input text-sm" value={bulkTargetSprint} onChange={e => setBulkTargetSprint(e.target.value)}>
+                  <option value={UNASSIGNED_ID}>Unassigned</option>
                   {sprints.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -1689,7 +1758,7 @@ function BacklogView({ project, onUpdateProject }) {
           ) : (
             <>
               <p className="text-sm text-gray-500">
-                <span className="font-medium text-gray-700">{bulkParsed.length} task{bulkParsed.length !== 1 ? 's' : ''}</span> parsed — review before importing into <span className="font-medium text-gray-700">{sprints.find(s => s.id === bulkTargetSprint)?.name}</span>.
+                <span className="font-medium text-gray-700">{bulkParsed.length} task{bulkParsed.length !== 1 ? 's' : ''}</span> parsed — review before importing into <span className="font-medium text-gray-700">{bulkTargetSprint === UNASSIGNED_ID ? 'Unassigned' : sprints.find(s => s.id === bulkTargetSprint)?.name}</span>.
               </p>
               <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-72 overflow-y-auto">
                 {bulkParsed.map((t, i) => (
@@ -2042,7 +2111,7 @@ export default function RoadmapPage() {
               Import Standup
             </button>
             <div className="flex items-center bg-gray-100 border border-gray-200 rounded-lg p-0.5">
-              {[['timeline', 'Timeline'], ['backlog', 'Backlog']].map(([v, label]) => (
+              {[['timeline', 'Timeline'], ['backlog', 'List']].map(([v, label]) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                     v === view ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
