@@ -498,7 +498,7 @@ function AdminEmployees({ state }) {
                 e.crew?.remoteOperator === emp.id || e.crew?.onsiteOperators?.includes(emp.id)
               ).length
               return (
-                <tr key={emp.id} className="hover:bg-gray-50 group">
+                <tr key={emp.id} className="hover:bg-gray-50">
                   <td className="table-cell">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">
@@ -517,7 +517,7 @@ function AdminEmployees({ state }) {
                   <td className="table-cell">
                     <button
                       onClick={() => openReset(emp)}
-                      className="opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-all"
+                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
                       title="Reset password"
                     >
                       <KeyRound size={13} /> Reset password
