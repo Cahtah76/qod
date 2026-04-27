@@ -8,20 +8,7 @@ import {
 } from 'lucide-react'
 import { useApp, getEventStatus, getChecklistProgress, getEventStatusColor, getPriorityColor } from '../context/AppContext.jsx'
 import { useRoadmap } from '../context/RoadmapContext.jsx'
-
-function projectHealth(project) {
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const parseD = s => new Date(s + 'T00:00:00')
-  const allTasks = project.sprints.flatMap(s => s.tasks)
-  const overdueIncomplete = project.sprints.filter(s => {
-    if (parseD(s.endDate) >= today) return false
-    const pct = s.tasks.length ? Math.round(s.tasks.filter(t => t.status === 'Done').length / s.tasks.length * 100) : 0
-    return pct < 70
-  })
-  const highOpen = allTasks.filter(t => t.priority === 'High' && t.status !== 'Done')
-  if (overdueIncomplete.length > 0 || highOpen.length > 3) return 'At Risk'
-  return 'On Track'
-}
+import { computeProjectHealth } from '../utils/projectHealth.js'
 
 function activeSprint(project) {
   const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -279,10 +266,12 @@ export default function Dashboard() {
             const doneTasks = allTasks.filter(t => t.status === 'Done')
             const overallPct = allTasks.length ? Math.round(doneTasks.length / allTasks.length * 100) : 0
             const sprint = activeSprint(project)
-            const health = projectHealth(project)
-            const healthCls = health === 'At Risk'
-              ? 'bg-yellow-100 text-yellow-700'
-              : 'bg-green-100 text-green-700'
+            const health = computeProjectHealth(project)
+            const healthCls = health === 'Blocked'
+              ? 'bg-red-100 text-red-700'
+              : health === 'At Risk'
+                ? 'bg-yellow-100 text-yellow-700'
+                : 'bg-green-100 text-green-700'
             return (
               <Link key={project.id} to="/roadmap"
                 className="border border-gray-200 rounded-lg p-3 hover:border-blue-200 hover:shadow-sm transition-all block">

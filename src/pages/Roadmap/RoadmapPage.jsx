@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useRoadmap } from '../../context/RoadmapContext.jsx'
 import { useApp } from '../../context/AppContext.jsx'
+import { computeProjectHealth } from '../../utils/projectHealth.js'
 import {
   Plus, X, ArrowLeft, Search, GripVertical, Calendar,
   ChevronDown, FolderOpen, Trash2, Sparkles, Send, Bot,
@@ -1220,31 +1221,7 @@ function computeProjectSummary(project) {
   const highPriorityIncomplete = allTasks.filter(t => t.priority === 'High' && t.status !== 'Done')
   const overallPct = allTasks.length ? Math.round((doneTasks.length / allTasks.length) * 100) : 0
 
-  const allNoteTexts = [
-    ...(project.notes || []).map(n => n.text.toLowerCase()),
-    ...sprints.flatMap(s => [
-      ...(s.notes || []).map(n => n.text.toLowerCase()),
-      ...s.tasks.flatMap(t => (t.notes || []).map(n => n.text.toLowerCase())),
-    ]),
-  ]
-  const hasBlockerMention = allNoteTexts.some(t => t.includes('block') || t.includes('stuck'))
-
-  const overdueWithLowCompletion = completed.filter(s => completionPct(s.tasks) < 70)
-
-  let activeBehind = false
-  for (const s of active) {
-    const start = parseDate(s.startDate).getTime()
-    const end = parseDate(s.endDate).getTime()
-    const elapsed = (today.getTime() - start) / (end - start)
-    if (elapsed > 0.6 && completionPct(s.tasks) / 100 < elapsed - 0.25) activeBehind = true
-  }
-
-  let health = 'On Track'
-  if (hasBlockerMention) {
-    health = 'Blocked'
-  } else if (overdueWithLowCompletion.length > 0 || activeBehind || highPriorityIncomplete.length > 3) {
-    health = 'At Risk'
-  }
+  const health = computeProjectHealth(project)
 
   const activeSprint = active[0] || completed[completed.length - 1]
   let headline
